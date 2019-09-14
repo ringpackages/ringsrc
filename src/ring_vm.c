@@ -259,7 +259,7 @@ RING_API void ring_vm_loadcode ( VM *pVM )
 	**  eval() will check if there is a need to reallocation or not 
 	**  This optimization increase the performance of applications that uses eval() 
 	*/
-	nSize = (ring_list_getsize(pVM->pCode))*RING_VM_EXTRASIZE ;
+	nSize = (MAX(ring_list_getsize(pVM->pCode),RING_VM_MINVMINSTRUCTIONS))*RING_VM_EXTRASIZE ;
 	pVM->pByteCode = (ByteCode *) ring_state_calloc(pVM->pRingState,nSize,sizeof(ByteCode));
 	if ( pVM->pByteCode == NULL ) {
 		printf( RING_OOM ) ;
@@ -802,6 +802,9 @@ int ring_vm_eval ( VM *pVM,const char *cStr )
 			pByteCode = (ByteCode *) ring_state_realloc(pVM->pRingState,pVM->pByteCode , sizeof(ByteCode) * ring_list_getsize(pVM->pCode));
 			if ( pByteCode == NULL ) {
 				printf( RING_OOM ) ;
+				printf( "RingVM : Can't Allocate Memory for the Byte Code!\n" ) ;
+				printf( "(Internal Information) Size of Byte Code : %d \n",ring_list_getsize(pVM->pCode) ) ;
+				printf( "(Internal Information) Eval Reallocation Size  : %d \n",pVM->nEvalReallocationSize ) ;
 				ring_scanner_delete(pScanner);
 				exit(0);
 			}
@@ -810,6 +813,8 @@ int ring_vm_eval ( VM *pVM,const char *cStr )
 				/* Here eval() function is called from .ring files ( not by the VM for setter/getter/operator overloading) */
 				pVM->nEvalReallocationFlag = 1 ;
 			}
+			/* Update the Eval Reallocation Size after Reallocation */
+			pVM->nEvalReallocationSize = ring_list_getsize(pVM->pCode) ;
 		}
 		else {
 			pVM->nEvalReallocationFlag = 0 ;
@@ -911,6 +916,8 @@ void ring_vm_returneval ( VM *pVM )
 				exit(0);
 			}
 			pVM->pByteCode = pByteCode ;
+			/* Update the Eval Reallocation Size after Reallocation */
+			pVM->nEvalReallocationSize = pVM->nEvalReallocationSize - nExtraSize ;
 		}
 		else {
 			pVM->nEvalReallocationSize = pVM->nEvalReallocationSize + nExtraSize ;
@@ -1384,7 +1391,7 @@ RING_API void ring_vm_callfunction ( VM *pVM,char *cFuncName )
 {
 	/* Lower Case and pass () in the end */
 	ring_string_lower(cFuncName);
-	/* Prepare (Remove effects of the currect function) */
+	/* Prepare (Remove effects of the current function) */
 	ring_list_deletelastitem_gc(pVM->pRingState,pVM->pFuncCallList);
 	/* Load the function and call it */
 	ring_vm_loadfunc2(pVM,cFuncName,0);

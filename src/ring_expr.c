@@ -611,7 +611,7 @@ int ring_parser_range ( Parser *pParser )
 
 int ring_parser_factor ( Parser *pParser,int *nFlag )
 {
-	int x,x2,x3,nLastOperation,nCount,nNOOP,nToken,nMark,nFlag2  ;
+	int x,x2,x3,nLastOperation,nCount,nNOOP,nToken,nMark,nFlag2,nThisOrSelfLoadA  ;
 	List *pLoadAPos, *pList, *pMark,*pAssignmentPointerPos  ;
 	char lSetProperty,lequal,nBeforeEqual  ;
 	char cFuncName[100]  ;
@@ -626,6 +626,13 @@ int ring_parser_factor ( Parser *pParser,int *nFlag )
 		ring_parser_icg_newoperand(pParser,pParser->TokenText);
 		/* Generate Location for nPC of Getter */
 		ring_parser_icg_newoperandint(pParser,0);
+		/* Check Loading Self or This */
+		if ( strcmp(pParser->TokenText,"self") == 0 || strcmp(pParser->TokenText ,"this") == 0 ) {
+			pParser->nThisOrSelfLoadA = 1 ;
+		}
+		else {
+			pParser->nThisOrSelfLoadA = 0 ;
+		}
 		ring_parser_nexttoken(pParser);
 		/* Set Identifier Flag */
 		*nFlag = 1 ;
@@ -690,6 +697,7 @@ int ring_parser_factor ( Parser *pParser,int *nFlag )
 		if ( (lequal == 1 ) && (pParser->nAssignmentFlag == 1) ) {
 			ring_parser_nexttoken(pParser);
 			/* Check if the Assignment after object attribute name */
+			nThisOrSelfLoadA = pParser->nThisOrSelfLoadA ;
 			pLoadAPos = NULL ;
 			if ( nLastOperation == ICO_LOADSUBADDRESS ) {
 				lSetProperty = 1 ;
@@ -707,6 +715,10 @@ int ring_parser_factor ( Parser *pParser,int *nFlag )
 			RING_PARSER_IGNORENEWLINE ;
 			pParser->nNewObject = 0 ;
 			x = ring_parser_expr(pParser);
+			/* Check New Object and this.property or self.property to disable set property */
+			if ( pParser->nNewObject && lSetProperty && nThisOrSelfLoadA ) {
+				lSetProperty = 0 ;
+			}
 			#if RING_PARSERTRACE
 			if ( x == 1 ) {
 				RING_STATE_CHECKPRINTRULES 
@@ -825,6 +837,10 @@ int ring_parser_factor ( Parser *pParser,int *nFlag )
 		puts("Rule : Factor --> Number");
 		#endif
 		ring_parser_nexttoken(pParser);
+		/* If we have condition - pass new lines */
+		if ( pParser->nControlStructureExpr ) {
+			RING_PARSER_IGNORENEWLINE ;
+		}
 		/* ++ and -- */
 		if ( ring_parser_ppmm(pParser) ) {
 			return 1 ;
@@ -847,6 +863,10 @@ int ring_parser_factor ( Parser *pParser,int *nFlag )
 		puts("Rule : Factor --> Literal");
 		#endif
 		ring_parser_nexttoken(pParser);
+		/* If we have condition - pass new lines */
+		if ( pParser->nControlStructureExpr ) {
+			RING_PARSER_IGNORENEWLINE ;
+		}
 		/* Array Index & Object Dot */
 		x = ring_parser_mixer(pParser);
 		if ( x == 0 ) {
@@ -1116,7 +1136,7 @@ int ring_parser_factor ( Parser *pParser,int *nFlag )
 
 int ring_parser_mixer ( Parser *pParser )
 {
-	int x,nCallMethod,nStatus,nFlag  ;
+	int x,nCallMethod,nStatus,nFlag,nNew  ;
 	/*
 	**  { . Identifier } 
 	**  Object Attributes 
@@ -1187,9 +1207,11 @@ int ring_parser_mixer ( Parser *pParser )
 		}
 		while ( 1 ) {
 			nFlag = pParser->nAssignmentFlag ;
+			nNew = pParser->nNewObject ;
 			pParser->nAssignmentFlag = 0 ;
 			if ( ring_parser_expr(pParser) ) {
 				pParser->nAssignmentFlag = nFlag ;
+				pParser->nNewObject = nNew ;
 				RING_PARSER_IGNORENEWLINE ;
 				if ( ring_parser_isoperator2(pParser,OP_COMMA) ) {
 					ring_parser_nexttoken(pParser);
