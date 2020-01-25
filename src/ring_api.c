@@ -107,6 +107,7 @@ RING_API void ring_vm_loadcfunctions ( RingState *pRingState )
 	ring_vm_funcregister("ring_state_setvar",ring_vmlib_state_setvar);
 	ring_vm_funcregister("ring_state_new",ring_vmlib_state_new);
 	ring_vm_funcregister("ring_state_mainfile",ring_vmlib_state_mainfile);
+	ring_vm_funcregister("ring_state_filetokens",ring_vmlib_state_filetokens);
 	/*
 	**  Ring See and Give 
 	**  We will use ringvm_see() and ringvm_give() to change the behavior of see and give 
@@ -553,7 +554,7 @@ void ring_vmlib_clock ( void *pPointer )
 void ring_vmlib_input ( void *pPointer )
 {
 	char *cLine  ;
-	int nSize  ;
+	int nSize,nOutput  ;
 	if ( RING_API_PARACOUNT != 1 ) {
 		RING_API_ERROR(RING_API_MISS1PARA);
 		return ;
@@ -574,7 +575,7 @@ void ring_vmlib_input ( void *pPointer )
 			return ;
 		}
 		/* Get Input From the User and save it in the variable */
-		RING_SETBINARY ;
+		nOutput = RING_SETBINARY ;
 		fread( cLine , sizeof(char) , nSize , stdin );
 		/* Return String */
 		RING_API_RETSTRING2(cLine,nSize);
@@ -694,7 +695,8 @@ void ring_vmlib_filename ( void *pPointer )
 void ring_vmlib_getchar ( void *pPointer )
 {
 	char cStr[2]  ;
-	RING_SETBINARY ;
+	int nOutput  ;
+	nOutput = RING_SETBINARY ;
 	cStr[0] = getchar() ;
 	RING_API_RETSTRING2(cStr,1);
 }
@@ -815,7 +817,7 @@ void ring_vmlib_timelist ( void *pPointer )
 
 void ring_vmlib_adddays ( void *pPointer )
 {
-	const char *cStr  ;
+	const unsigned char *cStr  ;
 	char buffer[25]  ;
 	int x,nDay,nMonth,nYear,nDaysInMonth  ;
 	int aDaysInMonth[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 } ;
@@ -827,7 +829,7 @@ void ring_vmlib_adddays ( void *pPointer )
 		RING_API_ERROR(RING_API_BADPARATYPE);
 		return ;
 	}
-	cStr = RING_API_GETSTRING(1);
+	cStr = (const unsigned char *) RING_API_GETSTRING(1) ;
 	if ( (RING_API_GETSTRINGSIZE(1) == 10) ) {
 		if ( isalnum(cStr[0]) && isalnum(cStr[1]) && isalnum(cStr[3]) && isalnum(cStr[4]) && isalnum(cStr[6]) && isalnum(cStr[7]) && isalnum(cStr[8]) && isalnum(cStr[9]) ) {
 			sprintf( buffer , "%c%c" , cStr[0],cStr[1] ) ;
@@ -884,7 +886,7 @@ void ring_vmlib_adddays ( void *pPointer )
 
 void ring_vmlib_diffdays ( void *pPointer )
 {
-	const char *cStr, *cStr2  ;
+	const unsigned char *cStr, *cStr2  ;
 	struct tm tm_info,tm_info2  ;
 	time_t timer,timer2  ;
 	char buffer[5]  ;
@@ -897,8 +899,8 @@ void ring_vmlib_diffdays ( void *pPointer )
 		RING_API_ERROR(RING_API_BADPARATYPE);
 		return ;
 	}
-	cStr = RING_API_GETSTRING(1);
-	cStr2 = RING_API_GETSTRING(2);
+	cStr = (const unsigned char *) RING_API_GETSTRING(1) ;
+	cStr2 = (const unsigned char *) RING_API_GETSTRING(2) ;
 	if ( (RING_API_GETSTRINGSIZE(1) == 10) && (RING_API_GETSTRINGSIZE(2) == 10) ) {
 		if ( isalnum(cStr[0]) && isalnum(cStr[1]) && isalnum(cStr[3]) && isalnum(cStr[4]) && isalnum(cStr[6]) && isalnum(cStr[7]) && isalnum(cStr[8]) && isalnum(cStr[9]) ) {
 			tm_info.tm_hour = 0 ;
@@ -1184,12 +1186,17 @@ void ring_vmlib_hex ( void *pPointer )
 void ring_vmlib_dec ( void *pPointer )
 {
 	unsigned long x  ;
+	int nOutput  ;
 	if ( RING_API_PARACOUNT != 1 ) {
 		RING_API_ERROR(RING_API_MISS1PARA);
 		return ;
 	}
 	if ( RING_API_ISSTRING(1) ) {
-		sscanf(RING_API_GETSTRING(1),"%lx",&x);
+		nOutput = sscanf(RING_API_GETSTRING(1),"%lx",&x);
+		if ( nOutput == EOF ) {
+			RING_API_ERROR(RING_SSCANFERROR);
+			return ;
+		}
 		RING_API_RETNUMBER(x);
 	} else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
@@ -1267,7 +1274,7 @@ void ring_vmlib_hex2str ( void *pPointer )
 	char cStr[3]  ;
 	const char *cString  ;
 	char *cString2  ;
-	int x,i,nMax  ;
+	int x,i,nMax,nOutput  ;
 	unsigned int y  ;
 	if ( RING_API_PARACOUNT != 1 ) {
 		RING_API_ERROR(RING_API_MISS1PARA);
@@ -1290,7 +1297,11 @@ void ring_vmlib_hex2str ( void *pPointer )
 			} else {
 				cStr[1] = '\0' ;
 			}
-			sscanf(cStr,"%x",&y);
+			nOutput = sscanf(cStr,"%x",&y);
+			if ( nOutput == EOF ) {
+				RING_API_ERROR(RING_SSCANFERROR);
+				return ;
+			}
 			cString2[i] = y ;
 			i++ ;
 		}
@@ -1393,7 +1404,7 @@ void ring_vmlib_str2hexcstyle ( void *pPointer )
 			return ;
 		}
 		for ( x = 1 ; x <= nMax ; x++ ) {
-			sprintf( cStr , "%x" , (unsigned int) cString[x-1] ) ;
+			sprintf( cStr , "%x" , (unsigned char) cString[x-1] ) ;
 			/* Separator */
 			cString2[(x-1)*5] = ',' ;
 			cString2[(x-1)*5+1] = '0' ;
@@ -1968,6 +1979,7 @@ void ring_vmlib_nullpointer ( void *pPointer )
 void ring_vmlib_space ( void *pPointer )
 {
 	char *pString  ;
+	unsigned int nStrSize  ;
 	if ( RING_API_PARACOUNT != 1 ) {
 		RING_API_ERROR(RING_API_MISS1PARA);
 		return ;
@@ -1977,12 +1989,14 @@ void ring_vmlib_space ( void *pPointer )
 			RING_API_ERROR(RING_API_BADPARARANGE);
 			return ;
 		}
-		pString = (char *) ring_state_calloc(((VM *) pPointer)->pRingState,1,RING_API_GETNUMBER(1));
+		nStrSize = (unsigned int) RING_API_GETNUMBER(1) ;
+		pString = (char *) ring_state_malloc(((VM *) pPointer)->pRingState,nStrSize);
 		if ( pString == NULL ) {
 			printf( RING_OOM ) ;
 			exit(0);
 		}
-		RING_API_RETSTRING2(pString,RING_API_GETNUMBER(1));
+		memset(pString,' ',nStrSize);
+		RING_API_RETSTRING2(pString,nStrSize);
 		ring_state_free(((VM *) pPointer)->pRingState,pString);
 	} else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
@@ -2083,7 +2097,7 @@ void ring_vmlib_state_main ( void *pPointer )
 	argc = 2 ;
 	strcpy(argv[0],"ring");
 	strcpy(argv[1],cStr);
-	ring_execute(cStr,0,1,0,0,0,0,0,0,0,argc,argv);
+	ring_execute(cStr,0,1,0,0,0,0,0,0,0,0,argc,argv);
 	ring_state_free(((VM *) pPointer)->pRingState,argv[0]);
 	ring_state_free(((VM *) pPointer)->pRingState,argv[1]);
 }
@@ -2157,4 +2171,25 @@ void ring_vmlib_state_mainfile ( void *pPointer )
 	*/
 	pRingState->nDontDeleteTheVM = 1 ;
 	ring_scanner_readfile(pRingState,cStr);
+}
+
+void ring_vmlib_state_filetokens ( void *pPointer )
+{
+	RingState *pState  ;
+	char *cFile  ;
+	List *pList  ;
+	if ( RING_API_PARACOUNT != 2 ) {
+		RING_API_ERROR(RING_API_MISS2PARA);
+		return ;
+	}
+	pState = (RingState *) RING_API_GETCPOINTER(1,"RINGSTATE") ;
+	cFile = RING_API_GETSTRING(2);
+	pState->nOnlyTokens = 1 ;
+	ring_scanner_readfile(pState,cFile);
+	pState->nOnlyTokens = 0 ;
+	/* Copy The List */
+	pList = RING_API_NEWLIST ;
+	ring_list_copy_tohighlevel_gc(((VM *) pPointer)->pRingState,pList,pState->pRingFileTokens);
+	RING_API_RETLIST(pList);
+	pState->pRingFileTokens = ring_list_delete_gc(pState,pState->pRingFileTokens);
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2020 Mahmoud Fayed <msfclipper@yahoo.com> */
 #ifndef ring_scanner_h
 #define ring_scanner_h
 /* Data */
@@ -128,7 +128,7 @@ void ring_scanner_operators ( Scanner *pScanner ) ;
 
 int ring_scanner_lasttokentype ( Scanner *pScanner ) ;
 
-char * ring_scanner_lasttokenvalue ( Scanner *pScanner ) ;
+const char * ring_scanner_lasttokenvalue ( Scanner *pScanner ) ;
 
 void ring_scanner_floatmark ( Scanner *pScanner,int type ) ;
 
@@ -142,13 +142,13 @@ void ring_scanner_addreturn3 ( RingState *pRingState,int aPara[3] ) ;
 
 void ring_scanner_printtokens ( Scanner *pScanner ) ;
 
-RING_API void ring_execute ( char *cFileName, int nISCGI,int nRun,int nPrintIC,int nPrintICFinal,int nTokens,int nRules,int nIns,int nGenObj,int nWarn,int argc,char *argv[] ) ;
+RING_API void ring_execute ( char *cFileName, int nISCGI,int nRun,int nPrintIC,int nPrintICFinal,int nTokens,int nRules,int nIns,int nGenObj,int nGenCObj,int nWarn,int argc,char *argv[] ) ;
 
 const char * ring_scanner_getkeywordtext ( const char *cStr ) ;
 
 void ring_scanner_runobjfile ( RingState *pRingState,char *cFileName ) ;
 
-void ring_scanner_runprogram ( RingState *pRingState ) ;
+RING_API void ring_scanner_runprogram ( RingState *pRingState ) ;
 
 void ring_scanner_changekeyword ( Scanner *pScanner ) ;
 

@@ -76,8 +76,6 @@ RING_API void ring_list_setlist_gc ( void *pState,List *pList, int index ) ;
 
 RING_API List * ring_list_getlist ( List *pList, int index ) ;
 
-RING_API void ring_list_setactiveitem ( List *pList, Items *pItems, int index ) ;
-
 RING_API void ring_list_copy_gc ( void *pState,List *pNewList, List *pList ) ;
 
 RING_API int ring_list_isnumber ( List *pList, int index ) ;
@@ -152,6 +150,8 @@ RING_API void ring_list_clear ( List *pList ) ;
 RING_API int ring_list_deliteminsidelist_gc ( void *pState,List *pList,Item *pItem ) ;
 
 RING_API void ring_list_swaptwolists ( List *pList1, List *pList2 ) ;
+
+RING_API void ring_list_copy_tohighlevel_gc ( void *pState,List *pNewList, List *pList ) ;
 /* Macro */
 #define ring_list_isdouble(pList,index) ( ring_list_getitem(pList,index)->NumberFlag == ITEM_NUMBERFLAG_DOUBLE)
 #define ring_list_isint(pList,index) ( ring_list_getitem(pList,index)->NumberFlag == ITEM_NUMBERFLAG_INT )

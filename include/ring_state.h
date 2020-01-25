@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2020 Mahmoud Fayed <msfclipper@yahoo.com> */
 #ifndef ring_state_h
 #define ring_state_h
 /* Data */
@@ -19,7 +19,7 @@ typedef struct RingState {
 	unsigned int nRun : 1  ;
 	/* PRINTIC is 1 if we need to print byte code before execution */
 	unsigned int nPrintIC : 1  ;
-	/* set to 1 if we need to print the fine byte code after execution */
+	/* set to 1 if we need to print the final byte code after execution */
 	unsigned int nPrintICFinal : 1  ;
 	/* set to 1 if we need to print the tokens */
 	unsigned int nPrintTokens : 1  ;
@@ -29,12 +29,16 @@ typedef struct RingState {
 	unsigned int nPrintInstruction : 1  ;
 	/* set to 1 if we need to generate the object file (ringo) */
 	unsigned int nGenObj : 1  ;
+	unsigned int nGenCObj : 1  ;
 	/* set to 1 if we need to display warnings */
 	unsigned int nWarning : 1  ;
 	/* Set to 1 to tell the scanner to don't delete the VM after execution */
 	unsigned int nDontDeleteTheVM : 1  ;
 	/* Set to 1 to tell the state that we are running Ring from Ring (to avoid exit() on error) */
 	unsigned int nRingInsideRing : 1  ;
+	/* Set to 1 to tell the scanner that we need the tokens only */
+	unsigned int nOnlyTokens : 1  ;
+	List *pRingFileTokens  ;
 	/* command line parameters */
 	int argc  ;
 	char  **argv  ;
@@ -54,6 +58,8 @@ typedef struct RingState {
 	char lRunFromThread  ;
 	/* Flag to know if we are using (Load Again) command */
 	int lLoadAgain  ;
+	/* Log File */
+	FILE *pLogFile;
 } RingState ;
 /* Functions */
 
@@ -80,6 +86,8 @@ RING_API void ring_state_runfile ( RingState *pRingState,char *cFileName ) ;
 RING_API void ring_state_runobjectfile ( RingState *pRingState,char *cFileName ) ;
 
 RING_API void ring_state_runobjectstring ( RingState *pRingState,char *cString,const char *cFileName ) ;
+
+RING_API void ring_state_log ( RingState *pRingState,const char *cStr ) ;
 /* MACRO */
 #define RING_STATE_CHECKPRINTRULES if ( pParser->pRingState->nPrintRules )
 #define RING_VERSION "1.12"

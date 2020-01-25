@@ -49,21 +49,8 @@ RING_API List * ring_list_new2_gc ( void *pState,List *pList,int nSize )
 
 RING_API List * ring_list_delete_gc ( void *pState,List *pList )
 {
-	Items *pItems,*pItemsNext  ;
-	pItems = pList->pFirst ;
-	pItemsNext = pItems ;
-	/* Delete Items */
-	while ( pItemsNext != NULL ) {
-		pItemsNext = pItems->pNext ;
-		ring_items_delete_gc(pState,pItems);
-		pItems = pItemsNext ;
-	}
-	/* Free Items Array */
-	ring_list_deletearray_gc(pState,pList);
-	/* Free HashTable */
-	if ( pList->pHashTable != NULL ) {
-		pList->pHashTable = ring_hashtable_delete_gc(pState,pList->pHashTable);
-	}
+	/* Delete All Items */
+	ring_list_deleteallitems_gc(pState,pList);
 	ring_state_free(pState,pList);
 	pList = NULL ;
 	return pList ;
@@ -176,6 +163,39 @@ RING_API void ring_list_deleteallitems_gc ( void *pState,List *pList )
 		pList->pHashTable = ring_hashtable_delete_gc(pState,pList->pHashTable);
 	}
 }
+
+RING_API void ring_list_copy_tohighlevel_gc ( void *pState,List *pNewList, List *pList )
+{
+	int x  ;
+	List *pNewList2  ;
+	assert(pList != NULL);
+	/*
+	**  This function don't add a new list before copying items 
+	**  if you want to add a list to another one, create new list in the target then copy to it 
+	**  Copy Items 
+	*/
+	if ( ring_list_getsize(pList) == 0 ) {
+		return ;
+	}
+	for ( x = 1 ; x <= ring_list_getsize(pList) ; x++ ) {
+		if ( ring_list_isint(pList,x) ) {
+			ring_list_adddouble_gc(pState,pNewList,(double) ring_list_getint(pList,x));
+		}
+		else if ( ring_list_isdouble(pList,x) ) {
+			ring_list_adddouble_gc(pState,pNewList,ring_list_getdouble(pList,x));
+		}
+		else if ( ring_list_isstring(pList,x) ) {
+			ring_list_addstring2_gc(pState,pNewList,ring_list_getstring(pList,x),ring_list_getstringsize(pList,x));
+		}
+		else if ( ring_list_ispointer(pList,x) ) {
+			ring_list_addpointer_gc(pState,pNewList,ring_list_getpointer(pList,x));
+		}
+		else if ( ring_list_islist(pList,x) ) {
+			pNewList2 = ring_list_newlist_gc(pState,pNewList);
+			ring_list_copy_tohighlevel_gc(pState,pNewList2,ring_list_getlist(pList,x));
+		}
+	}
+}
 /* List Items */
 
 RING_API void ring_list_newitem_gc ( void *pState,List *pList )
@@ -272,13 +292,6 @@ RING_API Item * ring_list_getitem ( List *pList,int index )
 	return pItem ;
 }
 
-RING_API void ring_list_setactiveitem ( List *pList, Items *pItems, int index )
-{
-	assert(pList != NULL);
-	pList->pLastItemLastAccess = pItems ;
-	pList->nNextItemAfterLastAccess = index + 1 ;
-}
-
 RING_API void ring_list_deleteitem_gc ( void *pState,List *pList,int index )
 {
 	int x  ;
@@ -310,11 +323,13 @@ RING_API void ring_list_deleteitem_gc ( void *pState,List *pList,int index )
 		if ( pItemsPrev != NULL ) {
 			pItemsPrev->pNext = pItems->pNext ;
 		}
-		if ( pItems->pNext != NULL ) {
-			pItems->pNext->pPrev = pItemsPrev ;
+		if ( pItems != NULL ) {
+			if ( pItems->pNext != NULL ) {
+				pItems->pNext->pPrev = pItemsPrev ;
+			}
+			ring_items_delete_gc(pState,pItems);
+			pList->nSize = pList->nSize - 1 ;
 		}
-		ring_items_delete_gc(pState,pItems);
-		pList->nSize = pList->nSize - 1 ;
 	}
 	/* Refresh The Cache */
 	pList->nNextItemAfterLastAccess = 0 ;
@@ -1323,7 +1338,6 @@ void ring_list_test ( void )
 	ring_list_delete(pList);
 	printf( "Deleting List 2 \n" ) ;
 	ring_list_delete(pList2);
-	getchar();
 	/* Create/Delete Large List */
 	printf( "Create List of 1000000 Items  \n" ) ;
 	pList = ring_list_new(1000000);
@@ -1332,10 +1346,8 @@ void ring_list_test ( void )
 		ring_list_setstring(pList,x,"empty item");
 	}
 	printf( "Done  \n" ) ;
-	getchar();
 	printf( "Deleting List 1 \n" ) ;
 	ring_list_delete(pList);
-	getchar();
 	/* Create Nested Lists */
 	printf( "List = {'first item',{'item (2) item(1)','item(2) item(2)'},'lastitem' , 50 , Pointer to int } \n  " ) ;
 	pList = ring_list_new(5);
@@ -1424,5 +1436,4 @@ void ring_list_test ( void )
 	puts(" *** Test Function Pointer *** ");
 	ring_list_callfuncpointer(pList,1,pList);
 	ring_list_delete(pList);
-	getchar();
 }

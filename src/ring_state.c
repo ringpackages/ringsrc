@@ -1,5 +1,5 @@
 /*
-**  Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> 
+**  Copyright (c) 2013-2020 Mahmoud Fayed <msfclipper@yahoo.com> 
 **  Include Files 
 */
 #include "ring.h"
@@ -23,10 +23,8 @@ static int nRingStateCGI  ;
 
 static void ring_testallunits ( void ) ;
 #endif
-#if RING_TESTPERFORMANCE
 
 static void ring_showtime ( void ) ;
-#endif
 
 void segfaultaction ( int sig ) ;
 /* API Functions */
@@ -54,6 +52,7 @@ RING_API RingState * ring_state_new ( void )
 	pRingState->nPrintRules = 0 ;
 	pRingState->nPrintInstruction = 0 ;
 	pRingState->nGenObj = 0 ;
+	pRingState->nGenCObj = 0 ;
 	pRingState->nWarning = 0 ;
 	pRingState->argc = 0 ;
 	pRingState->argv = NULL ;
@@ -71,6 +70,13 @@ RING_API RingState * ring_state_new ( void )
 	pRingState->lRunFromThread = 1 ;
 	pRingState->lLoadAgain = 0 ;
 	ring_list_addint(pRingState->aCustomGlobalScopeStack,pRingState->nCustomGlobalScopeCounter);
+	/* Log File */
+	#if RING_LOGFILE
+	pRingState->pLogFile = fopen("ringlog.txt" , "w+" );
+	#endif
+	/* Tokens Only */
+	pRingState->nOnlyTokens = 0 ;
+	pRingState->pRingFileTokens = NULL ;
 	return pRingState ;
 }
 
@@ -94,6 +100,10 @@ RING_API RingState * ring_state_delete ( RingState *pRingState )
 		ring_vm_delete(pRingState->pVM);
 	}
 	pRingState->aCustomGlobalScopeStack = ring_list_delete(pRingState->aCustomGlobalScopeStack);
+	/* Log File */
+	#if RING_LOGFILE
+	fclose( pRingState->pLogFile ) ;
+	#endif
 	ring_poolmanager_delete(pRingState);
 	ring_free(pRingState);
 	return NULL ;
@@ -152,7 +162,7 @@ RING_API List * ring_state_newvar ( RingState *pRingState,const char *cStr )
 
 RING_API void ring_state_main ( int argc, char *argv[] )
 {
-	int x,nCGI,nRun,nPrintIC,nPrintICFinal,nTokens,nRules,nIns,nPerformance,nSRC,nGenObj,nWarn  ;
+	int x,nCGI,nRun,nPrintIC,nPrintICFinal,nTokens,nRules,nIns,nPerformance,nSRC,nGenObj,nGenCObj,nWarn  ;
 	char *cStr  ;
 	/* Init Values */
 	nCGI = 0 ;
@@ -166,6 +176,7 @@ RING_API void ring_state_main ( int argc, char *argv[] )
 	cStr = NULL ;
 	nSRC = 0 ;
 	nGenObj = 0 ;
+	nGenCObj = 0 ;
 	nWarn = 0 ;
 	nRingStateDEBUGSEGFAULT = 0 ;
 	nRingStateCGI = 0 ;
@@ -203,6 +214,9 @@ RING_API void ring_state_main ( int argc, char *argv[] )
 			else if ( strcmp(argv[x],"-go") == 0 ) {
 				nGenObj = 1 ;
 			}
+			else if ( strcmp(argv[x],"-geo") == 0 ) {
+				nGenCObj = 1 ;
+			}
 			else if ( strcmp(argv[x],"-w") == 0 ) {
 				nWarn = 1 ;
 				nRingStateDEBUGSEGFAULT = 1 ;
@@ -213,25 +227,23 @@ RING_API void ring_state_main ( int argc, char *argv[] )
 			}
 		}
 	}
-	#if RING_TESTPERFORMANCE
 	if ( nPerformance ) {
 		ring_showtime();
 	}
-	#endif
 	srand(time(NULL));
 	/* Check Startup ring.ring */
 	if ( ring_fexists("ring.ring") && argc == 1 ) {
-		ring_execute((char *) "ring.ring",nCGI,nRun,nPrintIC,nPrintICFinal,nTokens,nRules,nIns,nGenObj,nWarn,argc,argv);
+		ring_execute((char *) "ring.ring",nCGI,nRun,nPrintIC,nPrintICFinal,nTokens,nRules,nIns,nGenObj,nGenCObj,nWarn,argc,argv);
 		exit(0);
 	}
 	if ( ring_fexists("ring.ringo") && argc == 1 ) {
-		ring_execute((char *) "ring.ringo",nCGI,nRun,nPrintIC,nPrintICFinal,nTokens,nRules,nIns,nGenObj,nWarn,argc,argv);
+		ring_execute((char *) "ring.ringo",nCGI,nRun,nPrintIC,nPrintICFinal,nTokens,nRules,nIns,nGenObj,nGenCObj,nWarn,argc,argv);
 		exit(0);
 	}
 	/* Print Version */
 	if ( (argc == 1) || (cStr == NULL) ) {
 		ring_print_line();
-		printf( "Ring version %s \n2013-2019, Mahmoud Fayed <msfclipper@yahoo.com>\n",RING_VERSION ) ;
+		printf( "Ring version %s \n2013-2020, Mahmoud Fayed <msfclipper@yahoo.com>\n",RING_VERSION ) ;
 		puts("Usage : ring filename.ring [Options]");
 		ring_print_line();
 		/* Options */
@@ -244,16 +256,15 @@ RING_API void ring_state_main ( int argc, char *argv[] )
 		puts("-ins      :  Print instruction operation code before execution");
 		puts("-clock    :  Print clock before and after program execution");
 		puts("-go       :  Generate object file");
+		puts("-geo      :  Generate embedded object file (C source code)");
 		puts("-w        :  Display Warnings");
 		ring_print_line();
 		exit(0);
 	}
-	ring_execute(cStr,nCGI,nRun,nPrintIC,nPrintICFinal,nTokens,nRules,nIns,nGenObj,nWarn,argc,argv);
-	#if RING_TESTPERFORMANCE
+	ring_execute(cStr,nCGI,nRun,nPrintIC,nPrintICFinal,nTokens,nRules,nIns,nGenObj,nGenCObj,nWarn,argc,argv);
 	if ( nPerformance ) {
 		ring_showtime();
 	}
-	#endif
 }
 
 RING_API void ring_state_runfile ( RingState *pRingState,char *cFileName )
@@ -270,6 +281,15 @@ RING_API void ring_state_runobjectstring ( RingState *pRingState,char *cString,c
 {
 	ring_scanner_runobjstring(pRingState,cString,cFileName);
 }
+
+RING_API void ring_state_log ( RingState *pRingState,const char *cStr )
+{
+	/* Log File */
+	#if RING_LOGFILE
+	fprintf( pRingState->pLogFile , "%s\n" , cStr ) ;
+	fflush(pRingState->pLogFile);
+	#endif
+}
 #if RING_TESTUNITS
 
 static void ring_testallunits ( void )
@@ -282,7 +302,6 @@ static void ring_testallunits ( void )
 	getchar();
 }
 #endif
-#if RING_TESTPERFORMANCE
 
 static void ring_showtime ( void )
 {
@@ -300,7 +319,6 @@ static void ring_showtime ( void )
 	printf( "Clock : %ld \n", myclock ) ;
 	ring_print_line();
 }
-#endif
 
 void segfaultaction ( int sig )
 {
@@ -404,6 +422,7 @@ void ring_exefolder ( char *cDirPath )
 	int x,x2,nSize  ;
 	ring_exefilename(cDir);
 	nSize = strlen( cDir ) ;
+	strcpy(cDir2,"");
 	for ( x = nSize-1 ; x >= 0 ; x-- ) {
 		if ( (cDir[x] == '\\') || (cDir[x] == '/') ) {
 			for ( x2 = x ; x2 >= 0 ; x2-- ) {
