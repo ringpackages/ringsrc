@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2021 Mahmoud Fayed <msfclipper@yahoo.com> */
 #include "ring.h"
 /* String As Array */
 
@@ -6,6 +6,10 @@ void ring_vm_string_pushv ( VM *pVM )
 {
 	char *newstr  ;
 	char cStr[2]  ;
+	if ( (pVM->nRetItemRef>=1)  && (ring_vm_isstackpointertoobjstate(pVM)==1) ) {
+		pVM->nRetItemRef-- ;
+		return ;
+	}
 	newstr = (char *) RING_VM_STACK_READP ;
 	RING_VM_STACK_POP ;
 	cStr[0] = newstr[0] ;
@@ -26,12 +30,14 @@ void ring_vm_string_assignment ( VM *pVM )
 			newstr[0] = ring_string_get(cStr1)[0] ;
 			ring_string_delete_gc(pVM->pRingState,cStr1);
 			return ;
-		} else {
+		}
+		else {
 			ring_string_delete_gc(pVM->pRingState,cStr1);
 			ring_vm_error(pVM,RING_VM_ERROR_VALUEMORETHANONECHAR);
 			return ;
 		}
-	} else {
+	}
+	else {
 		ring_vm_error(pVM,RING_VM_ERROR_VARISNOTSTRING);
 		return ;
 	}

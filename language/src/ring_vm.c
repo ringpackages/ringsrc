@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2020 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2021 Mahmoud Fayed <msfclipper@yahoo.com> */
 #include "ring.h"
 /*
 **  Functions 
@@ -213,8 +213,6 @@ VM * ring_vm_new ( RingState *pRingState )
 	pVM->lAddSubListsByMove = 0 ;
 	/* Add Sub Lists to Lists by Fast Copy */
 	pVM->lAddSubListsByFastCopy = 0 ;
-	/* A flag to stop/continue the execution of this thread (Stop/Continue the VM instructions exection) */
-	pVM->lStopThisThread = 0 ;
 	ring_state_log(pRingState,"function: ring_vm_new - end");
 	return pVM ;
 }
@@ -257,7 +255,7 @@ VM * ring_vm_delete ( VM *pVM )
 	pVM->aActiveGlobalScopes = ring_list_delete_gc(pVM->pRingState,pVM->aActiveGlobalScopes);
 	/* Dynamic Libraries */
 	#if RING_VM_DLL
-	ring_vm_dll_closealllibs(pVM);
+		ring_vm_dll_closealllibs(pVM);
 	#endif
 	pVM->pCLibraries = ring_list_delete_gc(pVM->pRingState,pVM->pCLibraries);
 	pVM->aAddressScope = ring_list_delete_gc(pVM->pRingState,pVM->aAddressScope);
@@ -276,7 +274,7 @@ RING_API void ring_vm_loadcode ( VM *pVM )
 	**  This optimization increase the performance of applications that uses eval() 
 	*/
 	nSize = (MAX(ring_list_getsize(pVM->pCode),RING_VM_MINVMINSTRUCTIONS))*RING_VM_EXTRASIZE ;
-	pVM->pByteCode = (ByteCode *) ring_state_calloc(pVM->pRingState,nSize,sizeof(ByteCode));
+	pVM->pByteCode = (ByteCode *) ring_calloc(nSize,sizeof(ByteCode));
 	if ( pVM->pByteCode == NULL ) {
 		printf( RING_OOM ) ;
 		exit(0);
@@ -312,24 +310,21 @@ void ring_vm_mainloop ( VM *pVM )
 {
 	pVM->pRingState->lStartPoolManager = 1 ;
 	#if RING_VMSHOWOPCODE
-	/* Preprocessor Allows showing the OPCODE */
-	if ( pVM->pRingState->nPrintInstruction ) {
-		do {
-			ring_vm_fetch2(pVM);
-			while(pVM->lStopThisThread) ; ;
-		} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
-	}
-	else {
+		/* Preprocessor Allows showing the OPCODE */
+		if ( pVM->pRingState->nPrintInstruction ) {
+			do {
+				ring_vm_fetch2(pVM);
+			} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
+		}
+		else {
+			do {
+				ring_vm_fetch(pVM);
+			} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
+		}
+	#else
 		do {
 			ring_vm_fetch(pVM);
-			while(pVM->lStopThisThread) ; ;
 		} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
-	}
-	#else
-	do {
-		ring_vm_fetch(pVM);
-		while(pVM->lStopThisThread) ; ;
-	} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
 	#endif
 }
 
@@ -349,24 +344,25 @@ void ring_vm_fetch2 ( VM *pVM )
 	pVM->pByteCodeIR = pVM->pByteCode + pVM->nPC - 1 ;
 	pVM->nOPCode = RING_VM_IR_OPCODE ;
 	#if RING_VMSHOWOPCODE
-	if ( pVM->pRingState->nPrintInstruction ) {
-		ring_print_line();
-		printf( "\nVM Pointer  : %p  " , (void *) pVM ) ;
-		printf( "\nOperation  : %s  " , RING_IC_OP[pVM->nOPCode] ) ;
-		printf( "\nPC         : %d  " ,pVM->nPC ) ;
-		printf( "\nLine Number    : %d  , File %s \n " ,pVM->nLineNumber,pVM->cFileName ) ;
-		if ( (pVM->nOPCode == ICO_PUSHC) || (pVM->nOPCode == ICO_LOADADDRESS) || (pVM->nOPCode == ICO_LOADFUNC) ) {
-			printf( "\nData       : %s \n",RING_VM_IR_READC ) ;
+		if ( pVM->pRingState->nPrintInstruction ) {
+			ring_general_printline();
+			printf( "VM Pointer    : %p  " , (void *) pVM ) ;
+			printf( "\nOperation     : %s  " , RING_IC_OP[pVM->nOPCode] ) ;
+			printf( "\nPC            : %d  " ,pVM->nPC ) ;
+			printf( "\nScopes Count  : %d  " ,ring_list_getsize(pVM->pMem) ) ;
+			printf( "\nScope Pointer : %p  " ,pVM->pActiveMem ) ;
+			printf( "\nFile Name     : %s \nLine Number   : %d\n" ,pVM->cFileName,pVM->nLineNumber ) ;
+			if ( (pVM->nOPCode == ICO_PUSHC) || (pVM->nOPCode == ICO_LOADADDRESS) || (pVM->nOPCode == ICO_LOADFUNC) ) {
+				printf( "Data          : %s \n",RING_VM_IR_READC ) ;
+			}
 		}
-	}
 	#endif
 	pVM->nPC++ ;
 	ring_vm_execute(pVM);
 	#if RING_VMSHOWOPCODE
-	if ( pVM->pRingState->nPrintInstruction ) {
-		printf( "\nSP (After) : %d  - FuncSP : %d \n LineNumber %d \n" , (int) pVM->nSP,pVM->nFuncSP,pVM->nLineNumber ) ;
-		ring_print_line();
-	}
+		if ( pVM->pRingState->nPrintInstruction ) {
+			printf( "\nSP (After)    : %d  \nFuncSP        : %d \nLineNumber    : %d \n" , (int) pVM->nSP,pVM->nFuncSP,pVM->nLineNumber ) ;
+		}
 	#endif
 	if ( pVM->nSP > RING_VM_STACK_CHECKOVERFLOW ) {
 		ring_vm_error(pVM,RING_VM_ERROR_STACKOVERFLOW);
@@ -548,10 +544,10 @@ void ring_vm_execute ( VM *pVM )
 			ring_vm_popexitmark(pVM);
 			break ;
 		case ICO_EXIT :
-			ring_vm_exit(pVM,1);
+			ring_vm_exit(pVM,RING_COMMANDTYPE_EXIT);
 			break ;
 		case ICO_LOOP :
-			ring_vm_exit(pVM,2);
+			ring_vm_exit(pVM,RING_COMMANDTYPE_LOOP);
 			break ;
 		/* For Better Performance */
 		case ICO_PUSHP :
@@ -699,6 +695,10 @@ void ring_vm_execute ( VM *pVM )
 		case ICO_SETGLOBALSCOPE :
 			ring_vm_setglobalscope(pVM);
 			break ;
+		/* Temp Lists */
+		case ICO_FREETEMPLISTS :
+			ring_vm_freetemplists(pVM);
+			break ;
 	}
 }
 
@@ -793,7 +793,8 @@ int ring_vm_eval ( VM *pVM,const char *cStr )
 		pVM->pRingState->lNoLineNumber = 1 ;
 		nRunVM = ring_parser_start(pScanner->Tokens,pVM->pRingState);
 		pVM->pRingState->lNoLineNumber = 0 ;
-	} else {
+	}
+	else {
 		ring_vm_error(pVM,"Error in eval!");
 		ring_scanner_delete(pScanner);
 		return 0 ;
@@ -813,7 +814,7 @@ int ring_vm_eval ( VM *pVM,const char *cStr )
 		ring_vm_blockflag2(pVM,nPC);
 		pVM->nPC = nLastPC+1 ;
 		if ( ring_list_getsize(pVM->pCode)  > pVM->nEvalReallocationSize ) {
-			pByteCode = (ByteCode *) ring_state_realloc(pVM->pRingState,pVM->pByteCode , sizeof(ByteCode) * ring_list_getsize(pVM->pCode));
+			pByteCode = (ByteCode *) ring_realloc(pVM->pByteCode , sizeof(ByteCode) * ring_list_getsize(pVM->pCode));
 			if ( pByteCode == NULL ) {
 				printf( RING_OOM ) ;
 				printf( "RingVM : Can't Allocate Memory for the Byte Code!\n" ) ;
@@ -850,7 +851,8 @@ int ring_vm_eval ( VM *pVM,const char *cStr )
 		**  Update ReallocationSize 
 		*/
 		pVM->nEvalReallocationSize = pVM->nEvalReallocationSize - (ring_list_getsize(pVM->pCode)-nLastPC) ;
-	} else {
+	}
+	else {
 		ring_vm_error(pVM,"Error in eval!");
 		ring_scanner_delete(pScanner);
 		return 0 ;
@@ -872,7 +874,7 @@ void ring_vm_tobytecode ( VM *pVM,int x )
 	pIR = ring_list_getlist(pVM->pCode,x);
 	pByteCode->nSize = ring_list_getsize(pIR) ;
 	#if RING_SHOWICFINAL
-	pByteCode->pList = pIR ;
+		pByteCode->pList = pIR ;
 	#endif
 	/* Check Instruction Size */
 	if ( ring_list_getsize(pIR) > RING_VM_BC_ITEMS_COUNT ) {
@@ -909,6 +911,7 @@ void ring_vm_returneval ( VM *pVM )
 	int aPara[3],nExtraSize  ;
 	ByteCode *pByteCode  ;
 	/* This function will always be called after each eval() execution */
+	ring_vm_mutexlock(pVM);
 	ring_vm_return(pVM);
 	aPara[0] = RING_VM_IR_READIVALUE(1) ;
 	aPara[1] = RING_VM_IR_READIVALUE(2) ;
@@ -925,7 +928,7 @@ void ring_vm_returneval ( VM *pVM )
 		}
 		if ( pVM->nEvalReallocationFlag == 1 ) {
 			pVM->nEvalReallocationFlag = 0 ;
-			pByteCode = (ByteCode *) ring_state_realloc(pVM->pRingState,pVM->pByteCode , sizeof(ByteCode) * ring_list_getsize(pVM->pCode));
+			pByteCode = (ByteCode *) ring_realloc(pVM->pByteCode , sizeof(ByteCode) * ring_list_getsize(pVM->pCode));
 			if ( pByteCode == NULL ) {
 				printf( RING_OOM ) ;
 				exit(0);
@@ -952,6 +955,7 @@ void ring_vm_returneval ( VM *pVM )
 	**  When the GUI Main Loop Ends, we return to the Ring Main Loop 
 	*/
 	pVM->nEvalReturnPC = aPara[0] ;
+	ring_vm_mutexunlock(pVM);
 }
 
 void ring_vm_error2 ( VM *pVM,const char *cStr,const char *cStr2 )
@@ -1274,17 +1278,26 @@ void ring_vm_mainloopforeval ( VM *pVM )
 	nDontDelete = pVM->nRetEvalDontDelete ;
 	pVM->nRetEvalDontDelete = 0 ;
 	#if RING_VMSHOWOPCODE
-	/* Preprocessor Allows showing the OPCODE */
-	if ( pVM->pRingState->nPrintInstruction ) {
-		do {
-			ring_vm_fetch2(pVM);
-			if ( pVM->nPC <= pVM->nEvalReturnPC ) {
-				pVM->nEvalReturnPC = 0 ;
-				break ;
-			}
-		} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
-	}
-	else {
+		/* Preprocessor Allows showing the OPCODE */
+		if ( pVM->pRingState->nPrintInstruction ) {
+			do {
+				ring_vm_fetch2(pVM);
+				if ( pVM->nPC <= pVM->nEvalReturnPC ) {
+					pVM->nEvalReturnPC = 0 ;
+					break ;
+				}
+			} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
+		}
+		else {
+			do {
+				ring_vm_fetch(pVM);
+				if ( pVM->nPC <= pVM->nEvalReturnPC ) {
+					pVM->nEvalReturnPC = 0 ;
+					break ;
+				}
+			} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
+		}
+	#else
 		do {
 			ring_vm_fetch(pVM);
 			if ( pVM->nPC <= pVM->nEvalReturnPC ) {
@@ -1292,15 +1305,6 @@ void ring_vm_mainloopforeval ( VM *pVM )
 				break ;
 			}
 		} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
-	}
-	#else
-	do {
-		ring_vm_fetch(pVM);
-		if ( pVM->nPC <= pVM->nEvalReturnPC ) {
-			pVM->nEvalReturnPC = 0 ;
-			break ;
-		}
-	} while (pVM->nPC <= ring_list_getsize(pVM->pCode))  ;
 	#endif
 	pVM->lInsideEval-- ;
 	pVM->nRetEvalDontDelete = nDontDelete ;
@@ -1345,6 +1349,7 @@ RING_API void ring_vm_runcodefromthread ( VM *pVM,const char *cStr )
 	List *pList,*pList2,*pList3,*pList4,*pList5  ;
 	Item *pItem  ;
 	unsigned int nMemoryBlocksCount, x  ;
+	Items *pItems  ;
 	/* Create the RingState */
 	pState = ring_state_init();
 	/*
@@ -1362,15 +1367,37 @@ RING_API void ring_vm_runcodefromthread ( VM *pVM,const char *cStr )
 	pState->pVM->pFuncMutexDestroy = pVM->pFuncMutexDestroy ;
 	pState->pVM->pFuncMutexLock = pVM->pFuncMutexLock ;
 	pState->pVM->pFuncMutexUnlock = pVM->pFuncMutexUnlock ;
-	pVM->lStopThisThread = 1 ;
 	/* Share the global scope between threads */
 	pItem = pState->pVM->pMem->pFirst->pValue ;
 	pState->pVM->pMem->pFirst->pValue = pVM->pMem->pFirst->pValue ;
 	/* Get Items for the Memory Pool From the Main Thread */
 	ring_poolmanager_newblockfromsubthread(pState,100000,pVM->pRingState);
 	/* Share Memory Blocks (Could be used for Lists in Global Scope) */
-	ring_list_copy(pState->vPoolManager.aBlocks,pVM->pRingState->vPoolManager.aBlocks);
-	nMemoryBlocksCount = ring_list_getsize(pState->vPoolManager.aBlocks) ;
+	nMemoryBlocksCount = ring_list_getsize(pVM->pRingState->vPoolManager.aBlocks) ;
+	/*
+	**  Thread Safe Code instead of ring_list_copy(pState->vPoolManager.aBlocks,pVM->pRingState->vPoolManager.aBlocks) 
+	**  Because the List structure contains (Cache) that we update when we access each item 
+	**  So we use the next code to avoid using/updating this cache 
+	*/
+	if ( nMemoryBlocksCount > 0 ) {
+		pItems = pVM->pRingState->vPoolManager.aBlocks->pFirst ;
+		while ( pItems != NULL ) {
+			/* Copy the Sub List - Each sub list contains two items [ Pointer, Pointer ] */
+			if ( pItems->pValue != NULL ) {
+				pList = ring_item_getlist(pItems->pValue) ;
+				if ( pList != NULL ) {
+					if ( (pList->pFirst != NULL) && (pList->pLast != NULL) ) {
+						if ( (pList->pFirst->pValue != NULL) && (pList->pLast->pValue != NULL) ) {
+							pList2 = ring_list_newlist(pState->vPoolManager.aBlocks);
+							ring_list_addpointer(pList2,ring_item_getpointer(pList->pFirst->pValue));
+							ring_list_addpointer(pList2,ring_item_getpointer(pList->pLast->pValue));
+						}
+					}
+				}
+			}
+			pItems = pItems->pNext ;
+		}
+	}
 	/* Save the state */
 	pList = pState->pVM->pCode ;
 	pList2 = pState->pVM->pFunctionsMap ;
@@ -1403,15 +1430,12 @@ RING_API void ring_vm_runcodefromthread ( VM *pVM,const char *cStr )
 	ring_vm_loadcode(pState->pVM);
 	/* Avoid the call to the main function */
 	pState->pVM->nCallMainFunction = 1 ;
-	pVM->lStopThisThread = 0 ;
 	ring_vm_mutexunlock(pVM);
 	/* Run the code */
 	ring_state_runcode(pState,cStr);
 	/* Return Memory Pool Items to the Main Thread */
 	ring_vm_mutexlock(pVM);
-	pVM->lStopThisThread = 1 ;
 	ring_poolmanager_deleteblockfromsubthread(pState,pVM->pRingState);
-	pVM->lStopThisThread = 0 ;
 	ring_vm_mutexunlock(pVM);
 	/* Delete Code List */
 	ring_list_delete_gc(pState,pState->pVM->pCode);
@@ -1442,6 +1466,8 @@ RING_API void ring_vm_runcodefromthread ( VM *pVM,const char *cStr )
 			ring_list_deleteitem(pState->vPoolManager.aBlocks,1);
 		}
 	}
+	/* Avoid deleting the Mutex */
+	pState->pVM->pMutex = NULL ;
 	/* Delete the RingState */
 	ring_state_delete(pState);
 }

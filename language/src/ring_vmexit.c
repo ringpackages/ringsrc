@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2021 Mahmoud Fayed <msfclipper@yahoo.com> */
 #include "ring.h"
 /* End Program / Exit from Loop / Loop (Continue) */
 
@@ -39,9 +39,10 @@ void ring_vm_exit ( VM *pVM,int nType )
 	int x,y,nStep  ;
 	nStep = 0 ;
 	/* Set Active List */
-	if ( nType == 1 ) {
+	if ( nType == RING_COMMANDTYPE_EXIT ) {
 		pActiveList = pVM->pExitMark ;
-	} else {
+	}
+	else {
 		pActiveList = pVM->pLoopMark ;
 	}
 	/* Get the Number from the Stack */
@@ -60,21 +61,35 @@ void ring_vm_exit ( VM *pVM,int nType )
 			for ( y = x + 1 ; y <= ring_list_getsize(pActiveList) ; y++ ) {
 				ring_list_deleteitem_gc(pVM->pRingState,pActiveList,y);
 			}
-		} else {
-			if ( nType == 1 ) {
+		}
+		else {
+			if ( nType == RING_COMMANDTYPE_EXIT ) {
 				ring_vm_error(pVM,RING_VM_ERROR_EXITNUMBEROUTSIDERANGE);
-			} else {
+			}
+			else {
 				ring_vm_error(pVM,RING_VM_ERROR_LOOPNUMBEROUTSIDERANGE);
 			}
 			return ;
 		}
+		/*
+		**  Call POP Step 
+		**  If we have many nested loops with different step values 
+		**  Then when we exit from more than one loop we must restore the step value too 
+		*/
+		if ( nStep > 1 ) {
+			for ( y = 2 ; y <= nStep ; y++ ) {
+				ring_vm_popstep(pVM);
+			}
+		}
 		pList = ring_list_getlist(pActiveList,x);
 		pVM->nPC = ring_list_getint(pList,1) ;
 		ring_vm_restorestate(pVM,pList,2,RING_STATE_EXIT);
-	} else {
-		if ( nType == 1 ) {
+	}
+	else {
+		if ( nType == RING_COMMANDTYPE_EXIT ) {
 			ring_vm_error(pVM,RING_VM_ERROR_EXITWITHOUTLOOP);
-		} else {
+		}
+		else {
 			ring_vm_error(pVM,RING_VM_ERROR_LOOPWITHOUTLOOP);
 		}
 		return ;
@@ -93,7 +108,8 @@ void ring_vm_stepnumber ( VM *pVM )
 		nNum1 = ring_vm_stringtonum(pVM,RING_VM_STACK_READC);
 		ring_list_adddouble_gc(pVM->pRingState,pVM->aForStep,nNum1);
 		RING_VM_STACK_POP ;
-	} else {
+	}
+	else {
 		ring_vm_error(pVM,RING_VM_ERROR_FORSTEPDATATYPE);
 	}
 }

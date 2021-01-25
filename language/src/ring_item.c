@@ -1,5 +1,5 @@
 /*
-**  Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> 
+**  Copyright (c) 2013-2020 Mahmoud Fayed <msfclipper@yahoo.com> 
 **  Header Files 
 */
 #include "ring.h"
@@ -51,7 +51,8 @@ RING_API void ring_item_print ( Item *pItem )
 			/* Work */
 			if ( pItem->NumberFlag == ITEM_NUMBERFLAG_INT ) {
 				printf( "%d\n ",pItem->data.iNumber ) ;
-			} else {
+			}
+			else {
 				printf( "%f \n",pItem->data.dNumber ) ;
 			}
 			break ;
@@ -93,6 +94,17 @@ RING_API void ring_item_content_delete_gc ( void *pState,Item *pItem )
 RING_API void ring_item_settype_gc ( void *pState,Item *pItem,int ItemType )
 {
 	assert(pItem != NULL);
+	if ( (ItemType == ITEMTYPE_STRING) && (pItem->nType == ITEMTYPE_STRING) ) {
+		/*
+		**  If the current item type is a String and the new type is also a String - We do nothing 
+		**  In this case the item will contains the old data 
+		**  So when we set the item string again using the same size 
+		**  We don't need to free & allocate the memory many times 
+		**  Where we can use the same memory 
+		**  This is useful when we process large data files through blocks of fixed size 
+		*/
+		return ;
+	}
 	/* When we set the type we remove the current content at first */
 	ring_item_content_delete_gc(pState,pItem);
 	switch ( ItemType ) {
@@ -150,14 +162,6 @@ RING_API void ring_itemarray_setdouble_gc ( void *pState,Item pList[], int index
 	pList[index].data.dNumber = number ;
 	pList[index].NumberFlag = ITEM_NUMBERFLAG_DOUBLE ;
 }
-#define ring_list_getint(pList,index) ( ring_list_getitem(pList,index)->data.iNumber )
-#define ring_list_getpointer(pList,index) ( ring_list_getitem(pList,index)->data.pPointer )
-#define ring_list_getfuncpointer(pList,index) ( ring_list_getitem(pList,index)->data.pFunc )
-#define ring_list_callfuncpointer(pList,index,x) ( ring_list_getitem(pList,index)->data.pFunc(x) )
-#define ring_list_getdouble(pList,index) ring_list_getitem(pList,index)->data.dNumber
-#define ring_list_getstring(pList,index) ( ring_string_get(ring_item_getstring(ring_list_getitem(pList,index))) )
-#define ring_list_getstringobject(pList,index) ( ring_item_getstring(ring_list_getitem(pList,index)) )
-#define ring_list_getstringsize(pList,index) ( ring_string_size(ring_item_getstring(ring_list_getitem(pList,index))) )
 /* String */
 
 RING_API void ring_itemarray_setstring_gc ( void *pState,Item pList[], int index ,const char *str )

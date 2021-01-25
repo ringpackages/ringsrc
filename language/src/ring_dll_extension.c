@@ -1,6 +1,5 @@
-/* Copyright (c) 2013-2020 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2021 Mahmoud Fayed <msfclipper@yahoo.com> */
 #include "ring.h"
-#include "ring_vmdll.h"
 /* Functions */
 
 void ring_vm_dll_loadfunctions ( RingState *pRingState )
@@ -43,7 +42,8 @@ void ring_vm_dll_loadlib ( void *pPointer )
 		ring_list_genhashtable2(pRingState->pRingCFunctions);
 		ring_list_addpointer_gc(pRingState,pVM->pCLibraries,handle);
 		RING_API_RETCPOINTER(handle,"DLL");
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }

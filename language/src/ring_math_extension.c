@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2021 Mahmoud Fayed <msfclipper@yahoo.com> */
 #include "ring.h"
 /* Functions */
 
@@ -35,7 +35,8 @@ void ring_vm_math_sin ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(sin(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -48,7 +49,8 @@ void ring_vm_math_cos ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(cos(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -61,7 +63,8 @@ void ring_vm_math_tan ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(tan(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -74,7 +77,8 @@ void ring_vm_math_asin ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(asin(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -87,7 +91,8 @@ void ring_vm_math_acos ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(acos(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -100,7 +105,8 @@ void ring_vm_math_atan ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(atan(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -113,7 +119,8 @@ void ring_vm_math_atan2 ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) && RING_API_ISNUMBER(2) ) {
 		RING_API_RETNUMBER(atan2(RING_API_GETNUMBER(1),RING_API_GETNUMBER(2)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -126,7 +133,8 @@ void ring_vm_math_sinh ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(sinh(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -139,7 +147,8 @@ void ring_vm_math_cosh ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(cosh(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -152,7 +161,8 @@ void ring_vm_math_tanh ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(tanh(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -165,21 +175,33 @@ void ring_vm_math_exp ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(exp(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
 
 void ring_vm_math_log ( void *pPointer )
 {
-	if ( RING_API_PARACOUNT != 1 ) {
+	if ( (RING_API_PARACOUNT != 1) && (RING_API_PARACOUNT != 2) ) {
 		RING_API_ERROR(RING_API_MISS1PARA);
 		return ;
 	}
-	if ( RING_API_ISNUMBER(1) ) {
-		RING_API_RETNUMBER(log(RING_API_GETNUMBER(1)));
-	} else {
-		RING_API_ERROR(RING_API_BADPARATYPE);
+	if ( RING_API_PARACOUNT == 1 ) {
+		if ( RING_API_ISNUMBER(1) ) {
+			RING_API_RETNUMBER(log(RING_API_GETNUMBER(1)));
+		}
+		else {
+			RING_API_ERROR(RING_API_BADPARATYPE);
+		}
+	}
+	if ( RING_API_PARACOUNT == 2 ) {
+		if ( RING_API_ISNUMBER(1) && RING_API_ISNUMBER(2) ) {
+			RING_API_RETNUMBER(log10(RING_API_GETNUMBER(1)) / log10(RING_API_GETNUMBER(2)));
+		}
+		else {
+			RING_API_ERROR(RING_API_BADPARATYPE);
+		}
 	}
 }
 
@@ -191,7 +213,8 @@ void ring_vm_math_log10 ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(log10(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -204,7 +227,8 @@ void ring_vm_math_ceil ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(ceil(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -217,7 +241,8 @@ void ring_vm_math_floor ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(floor(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -230,7 +255,8 @@ void ring_vm_math_fabs ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(fabs(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -243,7 +269,8 @@ void ring_vm_math_pow ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) && RING_API_ISNUMBER(2) ) {
 		RING_API_RETNUMBER(pow(RING_API_GETNUMBER(1),RING_API_GETNUMBER(2)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -256,22 +283,23 @@ void ring_vm_math_sqrt ( void *pPointer )
 	}
 	if ( RING_API_ISNUMBER(1) ) {
 		RING_API_RETNUMBER(sqrt(RING_API_GETNUMBER(1)));
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
 
 void ring_vm_math_unsigned ( void *pPointer )
 {
-	unsigned long nNum1,nNum2,nNum3  ;
+	RING_UNSIGNEDLONGLONG nNum1,nNum2,nNum3  ;
 	const char *cStr  ;
 	if ( RING_API_PARACOUNT != 3 ) {
 		RING_API_ERROR(RING_API_MISS3PARA);
 		return ;
 	}
 	if ( RING_API_ISNUMBER(1) && RING_API_ISNUMBER(2) && RING_API_ISSTRING(3) ) {
-		nNum1 = (unsigned long) RING_API_GETNUMBER(1) ;
-		nNum2 = (unsigned long) RING_API_GETNUMBER(2) ;
+		nNum1 = (RING_UNSIGNEDLONGLONG) RING_API_GETNUMBER(1) ;
+		nNum2 = (RING_UNSIGNEDLONGLONG) RING_API_GETNUMBER(2) ;
 		cStr = RING_API_GETSTRING(3) ;
 		if ( strcmp(cStr,">>") == 0 ) {
 			nNum3 = nNum1 >> nNum2 ;
@@ -326,12 +354,14 @@ void ring_vm_math_unsigned ( void *pPointer )
 		}
 		else if ( strcmp(cStr,"~") == 0 ) {
 			nNum3 = ~ nNum1 ;
-		} else {
+		}
+		else {
 			RING_API_ERROR(RING_API_BADPARATYPE);
 			return ;
 		}
 		RING_API_RETNUMBER((double) nNum3);
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }
@@ -342,16 +372,18 @@ void ring_vm_math_decimals ( void *pPointer )
 	if ( RING_API_PARACOUNT == 1 ) {
 		if ( RING_API_ISNUMBER(1) ) {
 			nNum1 = (int) RING_API_GETNUMBER(1) ;
-			if ( (nNum1 >= 0) && (nNum1 <= 14) ) {
+			if ( (nNum1 >= 0) && (nNum1 <= RING_VM_DECIMALSLIMIT) ) {
 				((VM *) pPointer)->nDecimals = nNum1 ;
 			}
 			else {
 				RING_API_ERROR(RING_VM_ERROR_BADDECIMALNUMBER);
 			}
-		} else {
+		}
+		else {
 			RING_API_ERROR(RING_API_BADPARATYPE);
 		}
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARACOUNT);
 	}
 }
@@ -367,7 +399,8 @@ void ring_vm_math_murmur3hash ( void *pPointer )
 	if ( RING_API_ISSTRING(1) && RING_API_ISNUMBER(2) ) {
 		nResult = ring_murmur3_32(RING_API_GETSTRING(1),RING_API_GETSTRINGSIZE(1),RING_API_GETNUMBER(2));
 		RING_API_RETNUMBER(nResult);
-	} else {
+	}
+	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
 }

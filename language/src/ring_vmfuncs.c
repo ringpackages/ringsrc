@@ -1,19 +1,14 @@
-/* Copyright (c) 2013-2020 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2021 Mahmoud Fayed <msfclipper@yahoo.com> */
 #include "ring.h"
 /* Functions */
 
 int ring_vm_loadfunc ( VM *pVM )
 {
-	if ( pVM->lInsideEval ) {
-		/*
-		**  In this case we are using eval("somefunction()") 
-		**  We don't use optimization, it's not required because the code will not be executed again 
-		*/
-		return ring_vm_loadfunc2(pVM,RING_VM_IR_READC,0) ;
-	}
-	else {
-		return ring_vm_loadfunc2(pVM,RING_VM_IR_READC,1) ;
-	}
+	/*
+	**  When pVM->lInsideEval == 1 In this case we are using eval("somefunction()") 
+	**  We don't use optimization, it's not required because the code will not be executed again 
+	*/
+	return ring_vm_loadfunc2(pVM,RING_VM_IR_READC, ! pVM->lInsideEval ) ;
 }
 
 int ring_vm_loadfunc2 ( VM *pVM,const char *cStr,int nPerformance )
@@ -75,11 +70,17 @@ int ring_vm_loadfunc2 ( VM *pVM,const char *cStr,int nPerformance )
 			/* Method or Function */
 			if ( (y == 1) && (pVM->nCallMethod != 1) ) {
 				ring_list_addint_gc(pVM->pRingState,pList3,0);
-			} else {
+			}
+			else {
 				ring_list_addint_gc(pVM->pRingState,pList3,1);
 			}
 			/* Line Number */
 			ring_list_addint_gc(pVM->pRingState,pList3,pVM->nLineNumber);
+			/* Store List information */
+			ring_list_addint_gc(pVM->pRingState,pList3,pVM->nListStart);
+			ring_list_addpointer_gc(pVM->pRingState,pList3,pVM->pNestedLists);
+			pVM->nListStart = 0 ;
+			pVM->pNestedLists = ring_list_new_gc(pVM->pRingState,0);
 			if ( (strcmp(cStr,"main") != 0 ) && (pVM->nCallMethod != 1) && (y != 2) && (nPerformance == 1) ) {
 				/*
 				**  We check that we will convert Functions only, not methods 
@@ -96,13 +97,13 @@ int ring_vm_loadfunc2 ( VM *pVM,const char *cStr,int nPerformance )
 				ring_vm_newbytecodeitem(pVM,5);
 				ring_vm_newbytecodeitem(pVM,6);
 				#if RING_SHOWICFINAL
-				/* Update generated code list, so the new items could appear */
-				RING_VM_IR_PARACOUNT = RING_VM_IR_PARACOUNT + 5 ;
-				ring_list_addint_gc(pVM->pRingState,RING_VM_IR_LIST,ring_list_getint(pList2,RING_FUNCMAP_PC));
-				ring_list_addint_gc(pVM->pRingState,RING_VM_IR_LIST,RING_FUNCTYPE_SCRIPT);
-				ring_list_addpointer_gc(pVM->pRingState,RING_VM_IR_LIST,ring_list_getstring(pList2,RING_FUNCMAP_FILENAME));
-				ring_list_addint_gc(pVM->pRingState,RING_VM_IR_LIST,ring_list_getint(pList3,RING_FUNCCL_METHODORFUNC));
-				ring_list_addint_gc(pVM->pRingState,RING_VM_IR_LIST,ring_list_getint(pList3,RING_FUNCCL_LINENUMBER));
+					/* Update generated code list, so the new items could appear */
+					RING_VM_IR_PARACOUNT = RING_VM_IR_PARACOUNT + 5 ;
+					ring_list_addint_gc(pVM->pRingState,RING_VM_IR_LIST,ring_list_getint(pList2,RING_FUNCMAP_PC));
+					ring_list_addint_gc(pVM->pRingState,RING_VM_IR_LIST,RING_FUNCTYPE_SCRIPT);
+					ring_list_addpointer_gc(pVM->pRingState,RING_VM_IR_LIST,ring_list_getstring(pList2,RING_FUNCMAP_FILENAME));
+					ring_list_addint_gc(pVM->pRingState,RING_VM_IR_LIST,ring_list_getint(pList3,RING_FUNCCL_METHODORFUNC));
+					ring_list_addint_gc(pVM->pRingState,RING_VM_IR_LIST,ring_list_getint(pList3,RING_FUNCCL_LINENUMBER));
 				#endif
 				ring_item_setint_gc(pVM->pRingState,RING_VM_IR_ITEM(2),ring_list_getint(pList2,RING_FUNCMAP_PC));
 				ring_item_setint_gc(pVM->pRingState,RING_VM_IR_ITEM(3),RING_FUNCTYPE_SCRIPT);
@@ -146,6 +147,11 @@ int ring_vm_loadfunc2 ( VM *pVM,const char *cStr,int nPerformance )
 		ring_list_addint_gc(pVM->pRingState,pList2,0);
 		/* Line Number */
 		ring_list_addint_gc(pVM->pRingState,pList2,pVM->nLineNumber);
+		/* Store List information */
+		ring_list_addint_gc(pVM->pRingState,pList2,pVM->nListStart);
+		ring_list_addpointer_gc(pVM->pRingState,pList2,pVM->pNestedLists);
+		pVM->nListStart = 0 ;
+		pVM->pNestedLists = ring_list_new_gc(pVM->pRingState,0);
 		/* Add nLoadAddressScope to aAddressScope */
 		ring_vm_saveloadaddressscope(pVM);
 		return 1 ;
@@ -206,6 +212,12 @@ void ring_vm_call2 ( VM *pVM )
 	/* Restore nLoadAddressScope from aAddressScope */
 	ring_vm_restoreloadaddressscope(pVM);
 	pList = ring_list_getlist(pVM->pFuncCallList,ring_list_getsize(pVM->pFuncCallList));
+	/* Restore List Status */
+	pVM->nListStart = ring_list_getint(pList,RING_FUNCCL_LISTSTART) ;
+	if ( pVM->pNestedLists != ring_list_getpointer(pList,RING_FUNCCL_NESTEDLISTS) ) {
+		pVM->pNestedLists = ring_list_delete_gc(pVM->pRingState,pVM->pNestedLists);
+		pVM->pNestedLists = (List *) ring_list_getpointer(pList,RING_FUNCCL_NESTEDLISTS) ;
+	}
 	/* Calling Method from brace */
 	if ( ring_list_getsize(pList) >= RING_FUNCCL_METHODORFUNC ) {
 		/* The first test to be sure it's not a C Function Call */
@@ -221,9 +233,7 @@ void ring_vm_call2 ( VM *pVM )
 	pVM->nFuncExecute = 0 ;
 	/* Call Function */
 	if ( ring_list_getint(pList,RING_FUNCCL_TYPE) == RING_FUNCTYPE_SCRIPT ) {
-		/* Store List information to allow calling function from list item and creating lists from that funct */
-		ring_list_addint_gc(pVM->pRingState,pList,pVM->nListStart);
-		ring_list_addpointer_gc(pVM->pRingState,pList,pVM->pNestedLists);
+		/* Clear List/Nested Lists State */
 		pVM->nListStart = 0 ;
 		pVM->pNestedLists = ring_list_new_gc(pVM->pRingState,0);
 		pVM->nPC = ring_list_getint(pList,RING_FUNCCL_PC) ;
@@ -287,9 +297,9 @@ void ring_vm_call2 ( VM *pVM )
 			/*
 			**  We don't remove the function from call list because ring_vm_catch() do when restore state 
 			**  We don't delete the scope because ring_vm_catch() will do when restore state 
-			**  Restore ActiveMem 
+			**  We don't restore pActiveMem because it's managed correctly by state functions (Save/Restore) for Try/Catch 
+			**  Avoiding the pActiveMem restore here is important when we have raise() function called after try/catch 
 			*/
-			pVM->pActiveMem = pActiveMem ;
 			return ;
 		}
 		/* Function Output */
@@ -315,7 +325,8 @@ void ring_vm_call2 ( VM *pVM )
 		if ( ring_list_getsize(pVM->pFuncCallList) > 0 ) {
 			pList = ring_list_getlist(pVM->pFuncCallList,ring_list_getsize(pVM->pFuncCallList));
 			pVM->nFuncSP = ring_list_getint(pList,RING_FUNCCL_SP) ;
-		} else {
+		}
+		else {
 			pVM->nFuncSP = 0 ;
 		}
 		/* if eval() is called, start the main loop again */
@@ -388,12 +399,14 @@ void ring_vm_return ( VM *pVM )
 		if ( ring_list_getsize(pVM->pFuncCallList) > 0 ) {
 			pList = ring_list_getlist(pVM->pFuncCallList,ring_list_getsize(pVM->pFuncCallList));
 			pVM->nFuncSP = ring_list_getint(pList,RING_FUNCCL_SP) ;
-		} else {
+		}
+		else {
 			pVM->nFuncSP = 0 ;
 		}
 		/* Trace */
 		ring_vm_traceevent(pVM,RING_VM_TRACEEVENT_RETURN);
-	} else {
+	}
+	else {
 		/* Call Main Function */
 		if ( pVM->nCallMainFunction == 0 ) {
 			pVM->nPC-- ;
@@ -441,7 +454,8 @@ void ring_vm_newfunc ( VM *pVM )
 					ring_vm_addnewpointervar(pVM,RING_VM_IR_READCVALUE(x-1),RING_VM_STACK_READP,RING_VM_STACK_OBJTYPE);
 					RING_VM_STACK_POP ;
 				}
-			} else {
+			}
+			else {
 				ring_vm_error(pVM,RING_VM_ERROR_LESSPARAMETERSCOUNT);
 				break ;
 			}
@@ -450,6 +464,8 @@ void ring_vm_newfunc ( VM *pVM )
 	if ( nSP < pVM->nSP ) {
 		ring_vm_error(pVM,RING_VM_ERROR_EXTRAPARAMETERSCOUNT);
 	}
+	/* Set the Temp. Memory size at start */
+	ring_list_addint_gc(pVM->pRingState,pList,ring_list_getsize(ring_list_getlist(pList,RING_FUNCCL_TEMPMEM)));
 	/* Support this in the method */
 	ring_vm_oop_setthethisvariable(pVM);
 	/* Trace */
@@ -502,14 +518,16 @@ void ring_vm_movetoprevscope ( VM *pVM )
 		pList = (List *) RING_VM_STACK_READP ;
 		if ( ring_list_islist(pList,RING_VAR_VALUE) ) {
 			pList = ring_list_getlist(pList,RING_VAR_VALUE);
-		} else {
+		}
+		else {
 			return ;
 		}
 	}
 	else if ( RING_VM_STACK_OBJTYPE ==RING_OBJTYPE_LISTITEM ) {
 		pItem = (Item *) RING_VM_STACK_READP ;
 		pList = ring_item_getlist(pItem);
-	} else {
+	}
+	else {
 		return ;
 	}
 	pList3 = ring_vm_newvar2(pVM,RING_TEMP_VARIABLE,ring_vm_prevtempmem(pVM));
@@ -564,10 +582,11 @@ void ring_vm_restoreloadaddressscope ( VM *pVM )
 
 void ring_vm_anonymous ( VM *pVM )
 {
-	const char *cStr  ;
+	char *cStr  ;
 	if ( RING_VM_STACK_ISSTRING ) {
 		cStr = RING_VM_STACK_READC ;
 		RING_VM_STACK_POP ;
+		ring_string_lower(cStr);
 		ring_vm_loadfunc2(pVM,cStr,0);
 	}
 	else {
@@ -602,4 +621,45 @@ List * ring_vm_prevtempmem ( VM *pVM )
 		}
 	}
 	return pList ;
+}
+
+void ring_vm_freetemplists ( VM *pVM )
+{
+	List *pTempMem  ;
+	int x,nStart  ;
+	nStart = 1 ;
+	/* Check that we are not in the class region */
+	if ( pVM->nInClassRegion ) {
+		/*
+		**  Because we may create a new object in the temp. memory 
+		**  To avoid deleting the object while it's under construction during class region code execution 
+		**  Example: new mytest   class test    x=1 while x < 10  x++ end 
+		*/
+		return ;
+	}
+	/* Get the current temp. list */
+	if ( ring_list_getsize(pVM->pFuncCallList) > 0 ) {
+		pTempMem = ring_list_getlist(pVM->pFuncCallList,ring_list_getsize(pVM->pFuncCallList)) ;
+		nStart = ring_list_getint(pTempMem,RING_FUNCCL_TEMPMEMSIZEATSTART) + 1 ;
+		pTempMem = ring_list_getlist(pTempMem,RING_FUNCCL_TEMPMEM) ;
+	}
+	else {
+		pTempMem = ring_list_newlist_gc(pVM->pRingState,pVM->pTempMem) ;
+	}
+	/* Delete Temp. Lists created during the function call */
+	if ( nStart == 1 ) {
+		/* No Temp. Lists are created before the code execution of the function */
+		ring_list_deleteallitems_gc(pVM->pRingState,pTempMem);
+	}
+	else {
+		/*
+		**  We start from nStart to avoid deleting any list passed by reference and exist in the temp. memory 
+		**  i.e. we have a situation like  f1(f2()) where f2() return a list that are passed to f1() 
+		**  So when this code is executed from f1() we have to avoid deleting this list 
+		**  Because if we deleted it, the function code may access it which means ---> Usage after delete 
+		*/
+		for ( x = nStart ; x <= ring_list_getsize(pTempMem) ; x++ ) {
+			ring_list_deleteitem_gc(pVM->pRingState,pTempMem,nStart);
+		}
+	}
 }

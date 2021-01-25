@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2021 Mahmoud Fayed <msfclipper@yahoo.com> */
 #include "ring.h"
 /* Functions */
 
@@ -23,9 +23,10 @@ RING_API String * ring_string_new2_gc ( void *pState,const char *str,int nStrSiz
 		printf( RING_OOM ) ;
 		exit(0);
 	}
-	/* Copy String */
-	for ( x = 0 ; x < nStrSize ; x++ ) {
-		pString->cStr[x] = str[x] ;
+	/* if str is NULL then the caller wants to adjust the preallocated memory */
+	if ( str ) {
+		/* Copy String */
+		RING_MEMCPY(pString->cStr, str, nStrSize);
 	}
 	pString->cStr[nStrSize] = '\0' ;
 	pString->nSize = nStrSize ;
@@ -51,6 +52,10 @@ RING_API void ring_string_set_gc ( void *pState,String *pString,const char *str 
 {
 	int x  ;
 	assert(pString != NULL);
+	if ( pString->cStr == str ) {
+		/* Setting the string by itself - Do nothing! */
+		return ;
+	}
 	x = strlen( str ) ;
 	ring_string_set2_gc(pState,pString,str,x);
 }
@@ -60,15 +65,23 @@ RING_API void ring_string_set2_gc ( void *pState,String *pString,const char *str
 	int x  ;
 	assert(pString != NULL);
 	assert(pString->cStr != NULL);
-	ring_state_free(pState,pString->cStr);
-	pString->cStr = (char *) ring_state_malloc(pState,nStrSize+1);
-	if ( pString->cStr  == NULL ) {
-		printf( RING_OOM ) ;
-		exit(0);
+	if ( (pString->nSize == nStrSize) && (pString->cStr == str) ) {
+		/* Setting the string by itself - Do nothing! */
+		return ;
 	}
-	/* Copy String */
-	for ( x = 0 ; x < nStrSize ; x++ ) {
-		pString->cStr[x] = str[x] ;
+	/* Allocate new buffer only if the new size is different from the current size */
+	if ( pString->nSize != nStrSize ) {
+		ring_state_free(pState,pString->cStr);
+		pString->cStr = (char *) ring_state_malloc(pState,nStrSize+1);
+		if ( pString->cStr  == NULL ) {
+			printf( RING_OOM ) ;
+			exit(0);
+		}
+	}
+	/* if str is NULL then the caller wants to adjust the preallocated memory */
+	if ( str ) {
+		/* Copy String */
+		RING_MEMCPY(pString->cStr, str, nStrSize);
 	}
 	pString->cStr[nStrSize] = '\0' ;
 	pString->nSize = nStrSize ;
@@ -83,27 +96,24 @@ RING_API void ring_string_add_gc ( void *pState,String *pString,const char *str 
 
 RING_API void ring_string_add2_gc ( void *pState,String *pString,const char *str,int nStrSize )
 {
-	int x  ;
-	int x2  ;
+	int x,x2,nOriginalSize  ;
 	char *cStr  ;
 	assert(pString != NULL);
-	x2 = nStrSize+ring_string_size(pString) ;
-	cStr = pString->cStr ;
-	pString->cStr = (char *) ring_state_malloc(pState,x2+1);
+	if ( nStrSize == 0 ) {
+		/* Adding empty string ---> Do Nothing! */
+		return ;
+	}
+	nOriginalSize = ring_string_size(pString) ;
+	x2 = nStrSize+nOriginalSize ;
+	pString->cStr = (char *) ring_state_realloc(pState,pString->cStr,nOriginalSize+1,x2+1);
 	if ( pString->cStr  == NULL ) {
 		printf( RING_OOM ) ;
 		exit(0);
 	}
 	/* Copy String */
-	for ( x = 0 ; x < ring_string_size(pString) ; x++ ) {
-		pString->cStr[x] = cStr[x] ;
-	}
-	for ( x = 0 ; x < nStrSize ; x++ ) {
-		pString->cStr[x+ring_string_size(pString)] = str[x] ;
-	}
+	RING_MEMCPY(pString->cStr + nOriginalSize, str, nStrSize);
 	pString->cStr[x2] = '\0' ;
 	pString->nSize = x2 ;
-	ring_state_free(pState,cStr);
 }
 
 RING_API void ring_string_print ( String *pString )
@@ -122,8 +132,9 @@ RING_API void ring_string_setfromint_gc ( void *pState,String *pString,int x )
 
 RING_API char * ring_string_lower ( char *cStr )
 {
-	unsigned int x  ;
-	for ( x = 0 ; x < strlen(cStr) ; x++ ) {
+	unsigned int x, nLen  ;
+	nLen = strlen(cStr) ;
+	for ( x = 0 ; x < nLen ; x++ ) {
 		if ( isalpha((unsigned char) cStr[x]) ) {
 			cStr[x] = tolower( cStr[x] );
 		}
@@ -144,8 +155,9 @@ RING_API char * ring_string_lower2 ( char *cStr,int nStrSize )
 
 RING_API char * ring_string_upper ( char *cStr )
 {
-	unsigned int x  ;
-	for ( x = 0 ; x < strlen(cStr) ; x++ ) {
+	unsigned int x, nLen  ;
+	nLen = strlen(cStr) ;
+	for ( x = 0 ; x < nLen ; x++ ) {
 		if ( isalpha((unsigned char) cStr[x]) ) {
 			cStr[x] = toupper( cStr[x] );
 		}
@@ -177,12 +189,19 @@ RING_API char * ring_string_find2_gc ( void *pState,char *cStr1,int nStrSize1,ch
 		return NULL ;
 	}
 	while ( nPos <= (nStrSize1 - nStrSize2) ) {
-		x = 0 ;
-		while ( (x < nStrSize2) && (cStr1[nPos+x] == cStr2[x] ) ) {
-			x++ ;
+		if ( nStrSize2 < RING_LOOP_THRESHOLD ) {
+			x = 0 ;
+			while ( (x < nStrSize2) && (cStr1[nPos+x] == cStr2[x] ) ) {
+				x++ ;
+			}
+			if ( x == nStrSize2 ) {
+				return cStr1+nPos ;
+			}
 		}
-		if ( x == nStrSize2 ) {
-			return cStr1+nPos ;
+		else {
+			if ( memcmp(cStr1+nPos,cStr2,nStrSize2) == 0 ) {
+				return cStr1+nPos ;
+			}
 		}
 		nPos++ ;
 	}
@@ -207,23 +226,27 @@ RING_API char * ring_string_find3_gc ( void *pState,char *cStr1,int nStrSize1,ch
 		printf( RING_OOM ) ;
 		exit(0);
 	}
-	for ( x = 0 ; x <= nStrSize1 ; x++ ) {
-		cStr3[x] = cStr1[x] ;
-	}
-	for ( x = 0 ; x <= nStrSize2 ; x++ ) {
-		cStr4[x] = cStr2[x] ;
-	}
+	RING_MEMCPY(cStr3,cStr1,nStrSize1);
+	RING_MEMCPY(cStr4,cStr2,nStrSize2);
 	ring_string_lower2(cStr3,nStrSize1);
 	ring_string_lower2(cStr4,nStrSize2);
 	pOutput = NULL ;
 	while ( nPos <= (nStrSize1 - nStrSize2) ) {
-		x = 0 ;
-		while ( (x < nStrSize2) && (cStr3[nPos+x] == cStr4[x] ) ) {
-			x++ ;
+		if ( nStrSize2 < RING_LOOP_THRESHOLD ) {
+			x = 0 ;
+			while ( (x < nStrSize2) && (cStr3[nPos+x] == cStr4[x] ) ) {
+				x++ ;
+			}
+			if ( x == nStrSize2 ) {
+				pOutput = cStr1+nPos ;
+				break ;
+			}
 		}
-		if ( x == nStrSize2 ) {
-			pOutput = cStr1+nPos ;
-			break ;
+		else {
+			if ( memcmp(cStr3+nPos,cStr4,nStrSize2) == 0 ) {
+				pOutput = cStr1+nPos ;
+				break ;
+			}
 		}
 		nPos++ ;
 	}
@@ -233,7 +256,7 @@ RING_API char * ring_string_find3_gc ( void *pState,char *cStr1,int nStrSize1,ch
 	return pOutput ;
 }
 
-RING_API char * ring_strdup ( void *pState,const char *cStr )
+RING_API char * ring_string_strdup ( void *pState,const char *cStr )
 {
 	char *cString  ;
 	int x,nSize  ;
@@ -243,38 +266,9 @@ RING_API char * ring_strdup ( void *pState,const char *cStr )
 		printf( RING_OOM ) ;
 		exit(0);
 	}
-	for ( x = 0 ; x < nSize ; x++ ) {
-		cString[x] = cStr[x] ;
-	}
+	RING_MEMCPY(cString, cStr, nSize);
 	cString[nSize] = '\0' ;
 	return cString ;
-}
-
-void ring_string_test ( void )
-{
-	#define nMaxValue 10
-	String *mystr[nMaxValue]  ;
-	int x  ;
-	String *pString  ;
-	for ( x = 0 ; x < nMaxValue ; x++ ) {
-		mystr[x] = ring_string_new("Wow Really i like the c language so much");
-		ring_string_print(mystr[x]);
-	}
-	for ( x = 0 ; x < nMaxValue ; x++ ) {
-		mystr[x] = ring_string_delete(mystr[x]);
-	}
-	/* Test String Add */
-	pString = ring_string_new("Hello ");
-	ring_string_add(pString,"World");
-	printf( "\nTest String Add , Output = %s\n",ring_string_get(pString) ) ;
-	ring_string_add(pString," Welcome to the C programming language");
-	printf( "\nTest String Add , Output = %s\n",ring_string_get(pString) ) ;
-	ring_string_delete(pString);
-	/* Test String to Lower */
-	pString = ring_string_new("Welcome to my StrinG");
-	printf( "Test string to lower \n" ) ;
-	printf( "%s\n",ring_string_tolower(pString) ) ;
-	ring_string_delete(pString);
 }
 /* Functions without state pointer */
 
