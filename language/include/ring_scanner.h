@@ -127,7 +127,8 @@
 	#define SCANNER_TOKEN_NUMBER 3
 	#define SCANNER_TOKEN_IDENTIFIER 4
 	#define SCANNER_TOKEN_ENDLINE 5
-	#define SCANNER_TOKEN_NOTOKEN 6
+	#define SCANNER_TOKEN_COMMENT 6
+	#define SCANNER_TOKEN_NOTOKEN 7
 	/* Scanner States */
 	#define SCANNER_STATE_GENERAL 0
 	#define SCANNER_STATE_LITERAL 1
@@ -152,7 +153,7 @@
 
 	void ring_scanner_keywords ( Scanner *pScanner ) ;
 
-	void ring_scanner_addtoken ( Scanner *pScanner,int type ) ;
+	void ring_scanner_addtoken ( Scanner *pScanner,int nType ) ;
 
 	void ring_scanner_checktoken ( Scanner *pScanner ) ;
 
@@ -168,7 +169,7 @@
 
 	const char * ring_scanner_lasttokenvalue ( Scanner *pScanner ) ;
 
-	void ring_scanner_floatmark ( Scanner *pScanner,int type ) ;
+	void ring_scanner_floatmark ( Scanner *pScanner,int nType ) ;
 
 	void ring_scanner_endofline ( Scanner *pScanner ) ;
 
@@ -189,4 +190,6 @@
 	void ring_scanner_loadsyntax ( Scanner *pScanner ) ;
 
 	void ring_scanner_readtwoparameters ( Scanner *pScanner,const char *cStr ) ;
+
+	const char * ring_scanner_processtoken ( Scanner *pScanner,int nType ) ;
 #endif

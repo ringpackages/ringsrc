@@ -555,6 +555,8 @@ int ring_parser_stmt ( Parser *pParser )
 							/* Save Loop|Exit commands status */
 							nLoopOrExitCommand = pParser->nLoopOrExitCommand ;
 							pParser->nLoopFlag++ ;
+							/* Free Temp Lists */
+							ring_parser_genfreetemplists(pParser);
 							RING_PARSER_ACCEPTSTATEMENTS ;
 							pParser->nLoopFlag-- ;
 							if ( ring_parser_iskeyword(pParser,K_NEXT) || ring_parser_iskeyword(pParser,K_END) || ring_parser_csbraceend(pParser) ) {
@@ -592,6 +594,8 @@ int ring_parser_stmt ( Parser *pParser )
 								}
 								/* POP Step */
 								ring_parser_icg_newoperation(pParser,ICO_POPSTEP);
+								/* Be more sure that (For-Loop) execution doesn't have any effects on the state */
+								ring_parser_icg_newoperation(pParser,ICO_FREESTACK);
 								ring_parser_nexttoken(pParser);
 								#if RING_PARSERTRACE
 								RING_STATE_CHECKPRINTRULES 
@@ -639,8 +643,16 @@ int ring_parser_stmt ( Parser *pParser )
 					/* Generate Code */
 					nEnd = ring_parser_icg_instructionscount(pParser) ;
 					/* Note (nEnd-1) , -1 to remove instruction PushV (avoid error with for x in string) */
-					if ( ring_parser_icg_getlastoperation(pParser) == ICO_PUSHV ) {
-						nEnd-- ;
+					switch ( ring_parser_icg_getlastoperation(pParser) ) {
+						case ICO_PUSHV :
+							nEnd-- ;
+							break ;
+						case ICO_NEWLINE :
+							/* Check the instruction before ICO_NEWLINE - It could be ICO_PUSHV */
+							if ( ring_parser_icg_getoperationbeforelastoperation(pParser) == ICO_PUSHV ) {
+								nEnd -= 2 ;
+							}
+							break ;
 					}
 					ring_parser_icg_newoperation(pParser,ICO_CALL);
 					/* Generate 0 For Operator OverLoading */
@@ -671,6 +683,8 @@ int ring_parser_stmt ( Parser *pParser )
 					/* Save Loop|Exit commands status */
 					nLoopOrExitCommand = pParser->nLoopOrExitCommand ;
 					pParser->nLoopFlag++ ;
+					/* Free Temp Lists */
+					ring_parser_genfreetemplists(pParser);
 					RING_PARSER_ACCEPTSTATEMENTS ;
 					pParser->nLoopFlag-- ;
 					if ( ring_parser_iskeyword(pParser,K_NEXT) || ring_parser_iskeyword(pParser,K_END) || ring_parser_csbraceend(pParser) ) {
@@ -712,6 +726,8 @@ int ring_parser_stmt ( Parser *pParser )
 						if ( nForInVarsCount == 1 ) {
 							ring_list_deleteallitems(pParser->pForInVars);
 						}
+						/* Be more sure that (For-Loop) execution doesn't have any effects on the state */
+						ring_parser_icg_newoperation(pParser,ICO_FREESTACK);
 						#if RING_PARSERTRACE
 						RING_STATE_CHECKPRINTRULES 
 						
@@ -826,6 +842,8 @@ int ring_parser_stmt ( Parser *pParser )
 		ring_parser_icg_newoperation(pParser,ICO_EXITMARK);
 		pMark3 = ring_parser_icg_getactiveoperation(pParser);
 		nMark1 = ring_parser_icg_newlabel(pParser);
+		/* Free Temp Lists */
+		ring_parser_genfreetemplists(pParser);
 		ring_parser_nexttoken(pParser);
 		RING_PARSER_IGNORENEWLINE ;
 		pParser->nAssignmentFlag = 0 ;
@@ -845,11 +863,7 @@ int ring_parser_stmt ( Parser *pParser )
 			RING_PARSER_ACCEPTSTATEMENTS ;
 			pParser->nLoopFlag-- ;
 			if ( ring_parser_iskeyword(pParser,K_END) || ring_parser_csbraceend(pParser) ) {
-				/*
-				**  Generate Code 
-				**  Free Temp Lists 
-				*/
-				ring_parser_icg_newoperation(pParser,ICO_FREETEMPLISTS);
+				/* Generate Code */
 				nMark3 = ring_parser_icg_newlabel(pParser);
 				ring_parser_icg_newoperation(pParser,ICO_JUMP);
 				ring_parser_icg_newoperandint(pParser,nMark1);
@@ -898,6 +912,8 @@ int ring_parser_stmt ( Parser *pParser )
 		ring_parser_icg_newoperation(pParser,ICO_EXITMARK);
 		pMark3 = ring_parser_icg_getactiveoperation(pParser);
 		nMark1 = ring_parser_icg_newlabel(pParser);
+		/* Free Temp Lists */
+		ring_parser_genfreetemplists(pParser);
 		ring_parser_nexttoken(pParser);
 		#if RING_PARSERTRACE
 		RING_STATE_CHECKPRINTRULES 
@@ -910,11 +926,6 @@ int ring_parser_stmt ( Parser *pParser )
 		RING_PARSER_ACCEPTSTATEMENTS ;
 		pParser->nLoopFlag-- ;
 		if ( ring_parser_iskeyword(pParser,K_AGAIN) ) {
-			/*
-			**  Generate Code 
-			**  Free Temp Lists 
-			*/
-			ring_parser_icg_newoperation(pParser,ICO_FREETEMPLISTS);
 			ring_parser_nexttoken(pParser);
 			RING_PARSER_IGNORENEWLINE ;
 			pParser->nAssignmentFlag = 0 ;
@@ -933,7 +944,7 @@ int ring_parser_stmt ( Parser *pParser )
 					/* Set Exit Mark */
 					ring_parser_icg_addoperandint(pParser,pMark3,nMark2);
 					/* Set Loop Mark */
-					ring_parser_icg_addoperandint(pParser,pMark3,nMark3);
+					ring_parser_icg_addoperandint(pParser,pMark3,nMark1);
 					/* End Loop (Remove Exit Mark) */
 					ring_parser_icg_newoperation(pParser,ICO_POPEXITMARK);
 				}
@@ -1571,4 +1582,19 @@ int ring_parser_gencallringvmsee ( Parser *pParser )
 	ring_parser_icg_newoperation(pParser,ICO_NOOP);
 	ring_parser_icg_newoperation(pParser,ICO_FREESTACK);
 	return x ;
+}
+
+void ring_parser_genfreetemplists ( Parser *pParser )
+{
+	/* Using the Free Temp Lists instruction */
+	ring_parser_icg_newoperation(pParser,ICO_FREETEMPLISTS);
+	/* The number of temp variables before calling the instruction for the first time */
+	ring_parser_icg_newoperandint(pParser,0);
+	/*
+	**  The Scope ID of the Current Function 
+	**  Each time Ring VM call a function, we get a new Scope ID 
+	**  We cache this Scope ID, If it's changed this means we have a new function call 
+	**  In this case we refresh the number of temp. variables 
+	*/
+	ring_parser_icg_newoperandint(pParser,0);
 }

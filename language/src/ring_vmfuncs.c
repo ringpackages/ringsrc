@@ -456,13 +456,18 @@ void ring_vm_newfunc ( VM *pVM )
 				}
 			}
 			else {
+				pVM->cFileName = pVM->cPrevFileName ;
+				ring_list_deleteitem_gc(pVM->pRingState,pVM->pFuncCallList,ring_list_getsize(pVM->pFuncCallList));
 				ring_vm_error(pVM,RING_VM_ERROR_LESSPARAMETERSCOUNT);
-				break ;
+				return ;
 			}
 		}
 	}
 	if ( nSP < pVM->nSP ) {
+		pVM->cFileName = pVM->cPrevFileName ;
+		ring_list_deleteitem_gc(pVM->pRingState,pVM->pFuncCallList,ring_list_getsize(pVM->pFuncCallList));
 		ring_vm_error(pVM,RING_VM_ERROR_EXTRAPARAMETERSCOUNT);
+		return ;
 	}
 	/* Set the Temp. Memory size at start */
 	ring_list_addint_gc(pVM->pRingState,pList,ring_list_getsize(ring_list_getlist(pList,RING_FUNCCL_TEMPMEM)));
@@ -640,11 +645,15 @@ void ring_vm_freetemplists ( VM *pVM )
 	/* Get the current temp. list */
 	if ( ring_list_getsize(pVM->pFuncCallList) > 0 ) {
 		pTempMem = ring_list_getlist(pVM->pFuncCallList,ring_list_getsize(pVM->pFuncCallList)) ;
-		nStart = ring_list_getint(pTempMem,RING_FUNCCL_TEMPMEMSIZEATSTART) + 1 ;
 		pTempMem = ring_list_getlist(pTempMem,RING_FUNCCL_TEMPMEM) ;
+		if ( (RING_VM_IR_READI == 0) || (RING_VM_IR_READIVALUE(2) !=pVM->nActiveScopeID) ) {
+			RING_VM_IR_READI = ring_list_getsize(pTempMem) + 1 ;
+			RING_VM_IR_READIVALUE(2) = pVM->nActiveScopeID ;
+		}
+		nStart = RING_VM_IR_READI ;
 	}
 	else {
-		pTempMem = ring_list_newlist_gc(pVM->pRingState,pVM->pTempMem) ;
+		return ;
 	}
 	/* Delete Temp. Lists created during the function call */
 	if ( nStart == 1 ) {

@@ -106,6 +106,8 @@ RING_API void ring_vm_generallib_loadfunctions ( RingState *pRingState )
 	ring_vm_funcregister("ring_state_new",ring_vm_generallib_state_new);
 	ring_vm_funcregister("ring_state_mainfile",ring_vm_generallib_state_mainfile);
 	ring_vm_funcregister("ring_state_filetokens",ring_vm_generallib_state_filetokens);
+	ring_vm_funcregister("ring_state_stringtokens",ring_vm_generallib_state_stringtokens);
+	ring_vm_funcregister("ring_state_scannererror",ring_vm_generallib_state_scannererror);
 	/* Performance */
 	ring_vm_funcregister("checkoverflow",ring_vm_generallib_checkoverflow);
 	ring_vm_funcregister("addsublistsbymove",ring_vm_generallib_addsublistsbymove);
@@ -313,7 +315,7 @@ void ring_vm_generallib_getchar ( void *pPointer )
 	cStr[0] = getchar() ;
 	RING_API_RETSTRING2(cStr,1);
 }
-/* 32 bit thread unsafe random generator using the seed (srand) */
+/* 31 bit thread unsafe random generator using the seed (srand) */
 
 void ring_vm_generallib_random ( void *pPointer )
 {
@@ -321,7 +323,7 @@ void ring_vm_generallib_random ( void *pPointer )
 	nNum1 = rand() ;
 	#ifdef _MSC_VER
 		rand_s(&nNum2);
-		nNum1 = (unsigned int) ( nNum2 * nNum1 ) >> 1 ;
+		nNum1 |= ( nNum2 & 0xFFFF ) << 15 ;
 	#endif
 	if ( RING_API_PARACOUNT == 0 ) {
 		RING_API_RETNUMBER(nNum1);
@@ -1242,17 +1244,19 @@ void ring_vm_generallib_substr ( void *pPointer )
 		if ( RING_API_ISNUMBER(2) && RING_API_ISNUMBER(3) ) {
 			nNum1 = RING_API_GETNUMBER(2) ;
 			nNum2 = RING_API_GETNUMBER(3) ;
-			if ( (nNum1 > 0) && ( (nNum1+nNum2-1) <= nSize ) ) {
-				cString = (char *) ring_state_malloc(((VM *) pPointer)->pRingState,nNum2);
-				if ( cString == NULL ) {
-					RING_API_ERROR(RING_OOM);
-					return ;
+			if ( (nNum1 > 0) && ( nNum1 <= nSize ) ) {
+				if ( (nNum2 > 0) && ( (nNum1+nNum2-1) <= nSize ) ) {
+					cString = (char *) ring_state_malloc(((VM *) pPointer)->pRingState,nNum2);
+					if ( cString == NULL ) {
+						RING_API_ERROR(RING_OOM);
+						return ;
+					}
+					for ( x = 0 ; x < nNum2 ; x++ ) {
+						cString[x] = cStr[((int) nNum1) + x - 1 ] ;
+					}
+					RING_API_RETSTRING2(cString,nNum2);
+					ring_state_free(((VM *) pPointer)->pRingState,cString);
 				}
-				for ( x = 0 ; x < nNum2 ; x++ ) {
-					cString[x] = cStr[((int) nNum1) + x - 1 ] ;
-				}
-				RING_API_RETSTRING2(cString,nNum2);
-				ring_state_free(((VM *) pPointer)->pRingState,cString);
 			}
 		}
 		else if ( RING_API_ISSTRING(2) && RING_API_ISSTRING(3) ) {
@@ -1281,6 +1285,10 @@ void ring_vm_generallib_substr ( void *pPointer )
 	if ( nTransform > 0 ) {
 		cStr2 = RING_API_GETSTRING(2) ;
 		nSize2 = RING_API_GETSTRINGSIZE(2) ;
+		if ( nSize2 == 0 ) {
+			RING_API_ERROR("Error in second parameter value!");
+			return ;
+		}
 		/* Search */
 		if ( nTransform == 1 ) {
 			cString = ring_string_find2(cStr,nSize,cStr2,nSize2) ;
@@ -1886,7 +1894,7 @@ void ring_vm_generallib_state_filetokens ( void *pPointer )
 	RingState *pState  ;
 	char *cFile  ;
 	List *pList  ;
-	int lCase  ;
+	int lCase,lComments  ;
 	if ( RING_API_PARACOUNT < 2 ) {
 		RING_API_ERROR(RING_API_MISS2PARA);
 		return ;
@@ -1895,21 +1903,81 @@ void ring_vm_generallib_state_filetokens ( void *pPointer )
 	cFile = RING_API_GETSTRING(2);
 	/* Check the (Not Case Sensitive) feature */
 	lCase = 1 ;
-	if ( RING_API_PARACOUNT == 3 ) {
+	if ( RING_API_PARACOUNT >= 3 ) {
 		if ( RING_API_ISNUMBER(3) ) {
 			lCase = (int) RING_API_GETNUMBER(3) ;
 		}
 	}
-	pState->nOnlyTokens = 1 ;
 	pState->lNotCaseSensitive = lCase ;
+	pState->nOnlyTokens = 1 ;
+	/* Check the (Comments As Tokens) feature */
+	lComments = 0 ;
+	if ( RING_API_PARACOUNT == 4 ) {
+		if ( RING_API_ISNUMBER(4) ) {
+			lComments = (int) RING_API_GETNUMBER(4) ;
+		}
+	}
+	pState->lCommentsAsTokens = lComments ;
 	ring_state_runfile(pState,cFile);
 	pState->lNotCaseSensitive = 1 ;
 	pState->nOnlyTokens = 0 ;
+	pState->lCommentsAsTokens = 0 ;
 	/* Copy The List */
 	pList = RING_API_NEWLIST ;
 	ring_list_copy_tohighlevel_gc(((VM *) pPointer)->pRingState,pList,pState->pRingFileTokens);
 	RING_API_RETLIST(pList);
 	pState->pRingFileTokens = ring_list_delete_gc(pState,pState->pRingFileTokens);
+}
+
+void ring_vm_generallib_state_stringtokens ( void *pPointer )
+{
+	RingState *pState  ;
+	char *cString  ;
+	List *pList  ;
+	int lCase,lComments  ;
+	if ( RING_API_PARACOUNT < 2 ) {
+		RING_API_ERROR(RING_API_MISS2PARA);
+		return ;
+	}
+	pState = (RingState *) RING_API_GETCPOINTER(1,"RINGSTATE") ;
+	cString = RING_API_GETSTRING(2);
+	/* Check the (Not Case Sensitive) feature */
+	lCase = 1 ;
+	if ( RING_API_PARACOUNT >= 3 ) {
+		if ( RING_API_ISNUMBER(3) ) {
+			lCase = (int) RING_API_GETNUMBER(3) ;
+		}
+	}
+	pState->lNotCaseSensitive = lCase ;
+	pState->nOnlyTokens = 1 ;
+	/* Check the (Comments As Tokens) feature */
+	lComments = 0 ;
+	if ( RING_API_PARACOUNT == 4 ) {
+		if ( RING_API_ISNUMBER(4) ) {
+			lComments = (int) RING_API_GETNUMBER(4) ;
+		}
+	}
+	pState->lCommentsAsTokens = lComments ;
+	ring_state_runstring(pState,cString);
+	pState->lNotCaseSensitive = 1 ;
+	pState->nOnlyTokens = 0 ;
+	pState->lCommentsAsTokens = 0 ;
+	/* Copy The List */
+	pList = RING_API_NEWLIST ;
+	ring_list_copy_tohighlevel_gc(((VM *) pPointer)->pRingState,pList,pState->pRingFileTokens);
+	RING_API_RETLIST(pList);
+	pState->pRingFileTokens = ring_list_delete_gc(pState,pState->pRingFileTokens);
+}
+
+void ring_vm_generallib_state_scannererror ( void *pPointer )
+{
+	RingState *pState  ;
+	if ( RING_API_PARACOUNT < 1 ) {
+		RING_API_ERROR(RING_API_MISS1PARA);
+		return ;
+	}
+	pState = (RingState *) RING_API_GETCPOINTER(1,"RINGSTATE") ;
+	RING_API_RETNUMBER(pState->nScannerError);
 }
 /* Ring See and Give */
 
@@ -1942,7 +2010,7 @@ void ring_vm_generallib_see ( void *pPointer )
 			ring_vm_oop_printobj(pVM,pList);
 		}
 		else {
-			ring_list_print(pList);
+			ring_list_print2(pList, ((VM *)pPointer)->nDecimals);
 		}
 	}
 	fflush(stdout);

@@ -213,6 +213,8 @@ VM * ring_vm_new ( RingState *pRingState )
 	pVM->lAddSubListsByMove = 0 ;
 	/* Add Sub Lists to Lists by Fast Copy */
 	pVM->lAddSubListsByFastCopy = 0 ;
+	/* A Flag that the Exit command is used to terminate the (For-In) Loop */
+	pVM->lExitFlag = 0 ;
 	ring_state_log(pRingState,"function: ring_vm_new - end");
 	return pVM ;
 }
@@ -1095,7 +1097,7 @@ void ring_vm_printstack ( VM *pVM )
 				printf( "(Pointer) : %p  \n",RING_VM_STACK_READP ) ;
 				if ( RING_VM_STACK_OBJTYPE == RING_OBJTYPE_VARIABLE ) {
 					printf( "(Pointer Type) : Variable \n" ) ;
-					ring_list_print((List *) RING_VM_STACK_READP);
+					ring_list_print2((List *) RING_VM_STACK_READP,pVM->nDecimals);
 				}
 				else if ( RING_VM_STACK_OBJTYPE ==RING_OBJTYPE_LISTITEM ) {
 					printf( "(Pointer Type) : ListItem \n" ) ;
@@ -1121,6 +1123,7 @@ void ring_vm_callclassinit ( VM *pVM )
 RING_API void ring_vm_showerrormessage ( VM *pVM,const char *cStr )
 {
 	int x,lFunctionCall  ;
+	char *cStr2  ;
 	List *pList  ;
 	const char *cFile  ;
 	const char *cOldFile  ;
@@ -1131,10 +1134,11 @@ RING_API void ring_vm_showerrormessage ( VM *pVM,const char *cStr )
 	/* Print Calling Information */
 	cOldFile = NULL ;
 	lFunctionCall = 0 ;
+	cStr = "" ;
 	for ( x = ring_list_getsize(pVM->pFuncCallList) ; x >= 1 ; x-- ) {
 		pList = ring_list_getlist(pVM->pFuncCallList,x);
 		/*
-		**  If we have ICO_LoadFunc but not ICO_CALL then we need to pass 
+		**  If we have ICO_LOADFUNC but not ICO_CALL then we need to pass 
 		**  ICO_LOADFUNC is executed, but still ICO_CALL is not executed! 
 		*/
 		if ( ring_list_getsize(pList) < RING_FUNCCL_CALLERPC ) {
@@ -1142,6 +1146,10 @@ RING_API void ring_vm_showerrormessage ( VM *pVM,const char *cStr )
 			continue ;
 		}
 		if ( ring_list_getint(pList,RING_FUNCCL_TYPE) == RING_FUNCTYPE_SCRIPT ) {
+			cStr2 = ring_list_getstring(pList,RING_FUNCCL_NAME) ;
+			if ( strcmp(cStr,cStr2) == 0 ) {
+				break ;
+			}
 			/*
 			**  Prepare Message 
 			**  In 
@@ -1155,7 +1163,7 @@ RING_API void ring_vm_showerrormessage ( VM *pVM,const char *cStr )
 				printf( "function " ) ;
 			}
 			/* Function Name */
-			printf( "%s",ring_list_getstring(pList,RING_FUNCCL_NAME) ) ;
+			printf( "%s",cStr2 ) ;
 			/* Adding () */
 			printf( "() in file " ) ;
 			/* File Name */
@@ -1178,6 +1186,7 @@ RING_API void ring_vm_showerrormessage ( VM *pVM,const char *cStr )
 			printf( "In %s() ",ring_list_getstring(pList,RING_FUNCCL_NAME) ) ;
 		}
 		lFunctionCall = 1 ;
+		cStr = cStr2 ;
 	}
 	if ( lFunctionCall ) {
 		printf( "in file %s ",ring_list_getstring(pVM->pRingState->pRingFilesList,1) ) ;
@@ -1433,10 +1442,9 @@ RING_API void ring_vm_runcodefromthread ( VM *pVM,const char *cStr )
 	ring_vm_mutexunlock(pVM);
 	/* Run the code */
 	ring_state_runcode(pState,cStr);
-	/* Return Memory Pool Items to the Main Thread */
 	ring_vm_mutexlock(pVM);
+	/* Return Memory Pool Items to the Main Thread */
 	ring_poolmanager_deleteblockfromsubthread(pState,pVM->pRingState);
-	ring_vm_mutexunlock(pVM);
 	/* Delete Code List */
 	ring_list_delete_gc(pState,pState->pVM->pCode);
 	ring_list_delete_gc(pState,pState->pVM->pFunctionsMap);
@@ -1466,6 +1474,7 @@ RING_API void ring_vm_runcodefromthread ( VM *pVM,const char *cStr )
 			ring_list_deleteitem(pState->vPoolManager.aBlocks,1);
 		}
 	}
+	ring_vm_mutexunlock(pVM);
 	/* Avoid deleting the Mutex */
 	pState->pVM->pMutex = NULL ;
 	/* Delete the RingState */

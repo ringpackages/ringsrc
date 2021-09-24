@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2021 Mahmoud Fayed <msfclipper@yahoo.com> */
 #include "ring.h"
 /* Functions */
 
@@ -73,6 +73,7 @@ void ring_scanner_readchar ( Scanner *pScanner,char c )
 							if ( strcmp(ring_list_getstring(pList,2),"/") == 0 ) {
 								ring_list_deleteitem_gc(pScanner->pRingState,pScanner->Tokens,ring_list_getsize(pScanner->Tokens));
 								pScanner->state = SCANNER_STATE_MLCOMMENT ;
+								ring_string_set_gc(pScanner->pRingState,pScanner->ActiveToken,"/*");
 								#if RING_SCANNEROUTPUT
 									printf( "\nMultiline comments start, ignore /* \n" ) ;
 								#endif
@@ -84,6 +85,7 @@ void ring_scanner_readchar ( Scanner *pScanner,char c )
 							if ( strcmp("/",ring_scanner_lasttokenvalue(pScanner)) ==  0 ) {
 								RING_SCANNER_DELETELASTTOKEN ;
 								pScanner->state = SCANNER_STATE_COMMENT ;
+								ring_string_set_gc(pScanner->pRingState,pScanner->ActiveToken,"//");
 								return ;
 							}
 						}
@@ -237,14 +239,22 @@ void ring_scanner_readchar ( Scanner *pScanner,char c )
 				#if RING_SCANNEROUTPUT
 					printf( "\n Not TOKEN (Comment) = %s  \n",ring_string_get(pScanner->ActiveToken) ) ;
 				#endif
+				if ( pScanner->pRingState->lCommentsAsTokens ) {
+					ring_scanner_addtoken(pScanner,SCANNER_TOKEN_COMMENT);
+				}
 				ring_string_set_gc(pScanner->pRingState,pScanner->ActiveToken,"");
 			}
 			else {
-				ring_string_add_gc(pScanner->pRingState,pScanner->ActiveToken,cStr);
+				if ( pScanner->pRingState->lCommentsAsTokens ) {
+					ring_string_add_gc(pScanner->pRingState,pScanner->ActiveToken,cStr);
+				}
 			}
 			break ;
 		case SCANNER_STATE_MLCOMMENT :
 			/* Check Multiline Comment */
+			if ( pScanner->pRingState->lCommentsAsTokens ) {
+				ring_string_add_gc(pScanner->pRingState,pScanner->ActiveToken,cStr);
+			}
 			switch ( pScanner->cMLComment ) {
 				case 0 :
 					if ( strcmp(cStr,"*") == 0 ) {
@@ -258,6 +268,9 @@ void ring_scanner_readchar ( Scanner *pScanner,char c )
 						#if RING_SCANNEROUTPUT
 							printf( "\nMultiline comments end \n" ) ;
 						#endif
+						if ( pScanner->pRingState->lCommentsAsTokens ) {
+							ring_scanner_addtoken(pScanner,SCANNER_TOKEN_COMMENT);
+						}
 						/* The next step is important to avoid storing * as identifier! */
 						ring_string_set_gc(pScanner->pRingState,pScanner->ActiveToken,"");
 					}
@@ -406,19 +419,19 @@ void ring_scanner_keywords ( Scanner *pScanner )
 	ring_list_genhashtable_gc(pScanner->pRingState,pScanner->Keywords);
 }
 
-void ring_scanner_addtoken ( Scanner *pScanner,int type )
+void ring_scanner_addtoken ( Scanner *pScanner,int nType )
 {
 	List *pList  ;
 	assert(pScanner != NULL);
 	pList = ring_list_newlist_gc(pScanner->pRingState,pScanner->Tokens);
 	/* Add Token Type */
-	ring_list_addint_gc(pScanner->pRingState,pList,type);
+	ring_list_addint_gc(pScanner->pRingState,pList,nType);
 	/* Add Token Text */
-	ring_list_addstring_gc(pScanner->pRingState,pList,ring_string_get(pScanner->ActiveToken));
+	ring_list_addstring_gc(pScanner->pRingState,pList,ring_scanner_processtoken(pScanner,nType));
 	/* Add Token Index */
 	ring_list_addint_gc(pScanner->pRingState,pList,pScanner->nTokenIndex);
 	pScanner->nTokenIndex = 0 ;
-	ring_scanner_floatmark(pScanner,type);
+	ring_scanner_floatmark(pScanner,nType);
 	ring_string_set_gc(pScanner->pRingState,pScanner->ActiveToken,"");
 }
 
@@ -426,13 +439,17 @@ void ring_scanner_checktoken ( Scanner *pScanner )
 {
 	int nResult  ;
 	char cStr[5]  ;
+	char *cActiveStr  ;
 	/* This function determine if the TOKEN is a Keyword or Identifier or Number */
 	assert(pScanner != NULL);
 	/* Not Case Sensitive */
+	cActiveStr = ring_string_strdup(pScanner->pRingState,ring_string_get(pScanner->ActiveToken));
+	cActiveStr = ring_string_lower(cActiveStr);
 	if ( pScanner->pRingState->lNotCaseSensitive ) {
 		ring_string_tolower(pScanner->ActiveToken);
 	}
-	nResult = ring_hashtable_findnumber(ring_list_gethashtable(pScanner->Keywords),ring_string_get(pScanner->ActiveToken));
+	nResult = ring_hashtable_findnumber(ring_list_gethashtable(pScanner->Keywords),cActiveStr);
+	ring_state_free(pScanner->pRingState,cActiveStr);
 	if ( nResult > 0 ) {
 		#if RING_SCANNEROUTPUT
 			printf( "\nTOKEN (Keyword) = %s  \n",ring_string_get(pScanner->ActiveToken) ) ;
@@ -481,11 +498,18 @@ int ring_scanner_isnumber ( char *cStr )
 	for ( x = 0 ; x < strlen(cStr) ; x++ ) {
 		/* Accept Hexadecimal values */
 		if ( (x == 0) && (strlen(cStr) > 2) ) {
-			/* Support 0x */
-			if ( (cStr[0] == '0') && ( (cStr[1] == 'x') || (cStr[1] == 'X') ) ) {
-				lHex = 1 ;
-				x++ ;
-				continue ;
+			if ( cStr[0] == '0' ) {
+				x2 = x ;
+				/* Support Many Zeros */
+				while ( (cStr[x2] == '0') && x2 < strlen(cStr) - 1 ) {
+					x2++ ;
+				}
+				/* Support 0x */
+				if ( (cStr[x2] == 'x') || (cStr[x2] == 'X') ) {
+					lHex = 1 ;
+					x = x2+1 ;
+					continue ;
+				}
 			}
 		}
 		if ( lHex ) {
@@ -519,10 +543,17 @@ int ring_scanner_checklasttoken ( Scanner *pScanner )
 	assert(pScanner != NULL);
 	if ( ring_list_getsize(pScanner->Tokens) == 0 ) {
 		if ( pScanner->state == SCANNER_STATE_COMMENT ) {
+			if ( pScanner->pRingState->lCommentsAsTokens ) {
+				ring_scanner_addtoken(pScanner,SCANNER_TOKEN_COMMENT);
+			}
 			return 1 ;
 		}
 	}
 	if ( pScanner->state == SCANNER_STATE_LITERAL ) {
+		if ( pScanner->pRingState->nOnlyTokens ) {
+			pScanner->pRingState->nScannerError = 1 ;
+			return 0 ;
+		}
 		ring_state_cgiheader(pScanner->pRingState);
 		printf( "Error (S1) In file: %s \n",ring_list_getstring(pScanner->pRingState->pRingFilesList,ring_list_getsize(pScanner->pRingState->pRingFilesList)) ) ;
 		printf( "In Line (%d) Literal not closed \n",pScanner->nLiteralLine ) ;
@@ -533,6 +564,11 @@ int ring_scanner_checklasttoken ( Scanner *pScanner )
 	}
 	else if ( pScanner->state ==SCANNER_STATE_GENERAL ) {
 		ring_scanner_checktoken(pScanner);
+	}
+	else if ( (pScanner->state == SCANNER_STATE_COMMENT) || (pScanner->state ==SCANNER_STATE_MLCOMMENT) ) {
+		if ( pScanner->pRingState->lCommentsAsTokens ) {
+			ring_scanner_addtoken(pScanner,SCANNER_TOKEN_COMMENT);
+		}
 	}
 	return 1 ;
 }
@@ -605,19 +641,19 @@ const char * ring_scanner_lasttokenvalue ( Scanner *pScanner )
 	return "" ;
 }
 
-void ring_scanner_floatmark ( Scanner *pScanner,int type )
+void ring_scanner_floatmark ( Scanner *pScanner,int nType )
 {
 	List *pList  ;
 	String *pString  ;
 	assert(pScanner != NULL);
 	switch ( pScanner->FloatMark ) {
 		case 0 :
-			if ( type == SCANNER_TOKEN_NUMBER ) {
+			if ( nType == SCANNER_TOKEN_NUMBER ) {
 				pScanner->FloatMark = 1 ;
 			}
 			break ;
 		case 1 :
-			if ( (type == SCANNER_TOKEN_OPERATOR) && ( strcmp(ring_string_get(pScanner->ActiveToken) , "." ) == 0  ) ) {
+			if ( (nType == SCANNER_TOKEN_OPERATOR) && ( strcmp(ring_string_get(pScanner->ActiveToken) , "." ) == 0  ) ) {
 				pScanner->FloatMark = 2 ;
 			}
 			else {
@@ -625,7 +661,7 @@ void ring_scanner_floatmark ( Scanner *pScanner,int type )
 			}
 			break ;
 		case 2 :
-			if ( type == SCANNER_TOKEN_NUMBER ) {
+			if ( nType == SCANNER_TOKEN_NUMBER ) {
 				pList = ring_list_getlist(pScanner->Tokens,ring_list_getsize(pScanner->Tokens));
 				pString = ring_string_new_gc(pScanner->pRingState,ring_list_getstring(pList,2)) ;
 				ring_list_deleteitem_gc(pScanner->pRingState,pScanner->Tokens,ring_list_getsize(pScanner->Tokens));
@@ -906,4 +942,35 @@ void ring_scanner_readtwoparameters ( Scanner *pScanner,const char *cStr )
 			}
 		}
 	}
+}
+
+const char * ring_scanner_processtoken ( Scanner *pScanner,int nType )
+{
+	char *pStart, *pChar  ;
+	int t,nPos,nSize,lXExist  ;
+	pStart = ring_string_get(pScanner->ActiveToken);
+	if ( nType == SCANNER_TOKEN_NUMBER ) {
+		/* Remove Many Zeros in the Start */
+		pChar = pStart ;
+		nSize = strlen(pChar) ;
+		nPos = 0 ;
+		if ( nSize > 0 ) {
+			if ( pChar[0] == '0' ) {
+				lXExist = 0 ;
+				for ( t = 1 ; t < nSize ; t++ ) {
+					if ( ( pChar[t-1] == '0') && (pChar[t] == '0') ) {
+						nPos++ ;
+					}
+					if ( (pChar[t] == 'x' ) || (pChar[t] == 'X') ) {
+						lXExist = 1 ;
+						break ;
+					}
+				}
+				if ( lXExist ) {
+					pStart += nPos ;
+				}
+			}
+		}
+	}
+	return pStart ;
 }
