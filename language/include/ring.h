@@ -1,6 +1,9 @@
-/* Copyright (c) 2013-2022 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2023 Mahmoud Fayed <msfclipper@yahoo.com> */
 #ifndef ring_h
     #define ring_h
+    #ifndef NDEBUG
+        #define NDEBUG
+    #endif
     /* Include C Headers */
     #include <stdlib.h>
     #include <stdio.h>
@@ -12,6 +15,15 @@
     #include <signal.h>
     #include <errno.h>
     #include <limits.h>
+    #if defined(MSDOS) || defined(__MSDOS__) || defined(_MSDOS) || defined(__DOS__)
+        #define RING_MSDOS 1
+        #if __BORLANDC__
+            #include <dir.h>
+            #include <alloc.h>
+        #endif
+    #else
+        #define RING_MSDOS 0
+    #endif
     #ifdef _WIN32
         #include <io.h>
         #include <fcntl.h>
@@ -80,16 +92,7 @@
         #define RING_API extern
     #endif
     /* Constants */
-    #define RING_SCANNEROUTPUT 0
-    #define RING_PARSERSTART 1
-    #define RING_PARSERTRACE 1
-    #define RING_SHOWIC 0
-    #define RING_RUNVM 1
-    #define RING_VMSHOWOPCODE 1
     #define RING_LOGFILE 0
-    #ifndef NDEBUG
-        #define NDEBUG
-    #endif
     /* Environment Errors */
     #define RING_SEGFAULT "\nError (E1) : Caught SegFault!\n"
     #define RING_OOM "\nError (E2) : Out of Memory!\n"
@@ -105,45 +108,45 @@
     #define RING_USESEEFUNCTION 1
     #define RING_USEGIVEFUNCTION 1
     /* Include Ring Headers */
-    #include "ring_ext.h"
-    #include "ring_string.h"
-    #include "ring_vmgcdata.h"
-    #include "ring_item.h"
-    #include "ring_items.h"
-    #include "ring_list.h"
-    #include "ring_hashlib.h"
-    #include "ring_hashtable.h"
-    #include "ring_pooldata.h"
-    #include "ring_general.h"
-    #include "ring_state.h"
-    #include "ring_scanner.h"
-    #include "ring_parser.h"
-    #include "ring_codegen.h"
-    #include "ring_vm.h"
-    #include "ring_vmgc.h"
-    #include "ring_api.h"
-    #include "ring_generallib_extension.h"
-    #include "ring_objfile.h"
+    #include "ext.h"
+    #include "rstring.h"
+    #include "vmgcdata.h"
+    #include "ritem.h"
+    #include "ritems.h"
+    #include "rlist.h"
+    #include "hashlib.h"
+    #include "rhtable.h"
+    #include "pooldata.h"
+    #include "general.h"
+    #include "state.h"
+    #include "scanner.h"
+    #include "parser.h"
+    #include "codegen.h"
+    #include "vm.h"
+    #include "vmgc.h"
+    #include "ringapi.h"
+    #include "genlib_e.h"
+    #include "objfile.h"
     /* Extensions Headers */
     #ifndef RING_EXTENSION
         #define RING_EXTENSION
         #ifdef RING_VM_MATH
-            #include "ring_math_extension.h"
+            #include "math_e.h"
         #endif
         #ifdef RING_VM_FILE
-            #include "ring_file_extension.h"
+            #include "file_e.h"
         #endif
         #ifdef RING_VM_OS
-            #include "ring_os_extension.h"
+            #include "os_e.h"
         #endif
         #ifdef RING_VM_LISTFUNCS
-            #include "ring_list_extension.h"
+            #include "list_e.h"
         #endif
         #ifdef RING_VM_REFMETA
-            #include "ring_refmeta_extension.h"
+            #include "meta_e.h"
         #endif
         #ifdef RING_VM_DLL
-            #include "ring_dll_extension.h"
+            #include "dll_e.h"
         #endif
     #endif
 #endif
