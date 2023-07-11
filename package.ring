@@ -2,14 +2,14 @@ aPackageInfo = [
 	:name = "The RingSrc Package",
 	:description = "Our RingSrc package using the Ring programming language",
 	:folder = "ringsrc",
-	:developer = "",
-	:email = "",
+	:developer = "Mahmoud Fayed",
+	:email = "msfclipper@yahoo.com",
 	:license = "MIT License",
-	:version = "1.0.0",
+	:version = "1.18.0",
 	:ringversion = "1.18",
 	:versions = 	[
 		[
-			:version = "1.0.0",
+			:version = "1.18.0",
 			:branch = "master"
 		]
 	],
