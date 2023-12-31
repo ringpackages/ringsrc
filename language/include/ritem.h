@@ -3,15 +3,6 @@
     #define ring_item_h
     /* Data */
     typedef struct Item {
-        /* Item Type */
-        unsigned int nType:3  ;
-        /* The number type, 0 = Nothing , 1 = int , 2 = double */
-        unsigned int NumberFlag:2  ;
-        /*
-        **  what is the type of the object that the pointer refer to 
-        **  Used when putting the item in the stack to refer to list or listitem 
-        */
-        unsigned int nObjectType:2  ;
         /* Data */
         union {
             struct String *pString  ;
@@ -22,8 +13,18 @@
             void (*pFunc)(void *) ;
             float fNumber  ;
         } data ;
+        /* Item Type */
+        unsigned int nType:3  ;
+        /* The number type, 0 = Nothing , 1 = int , 2 = double */
+        unsigned int NumberFlag:2  ;
+        /*
+        **  what is the type of the object that the pointer refer to 
+        **  Used when putting the item in the stack to refer to list or listitem 
+        */
+        unsigned int nObjectType:2  ;
         /* Garbage Collector Data (Reference Counting) */
-        ItemGCData gc  ;
+        unsigned int gcnReferenceCount: RING_VM_BITSFORREFCOUNT  ;
+        void (*gcpFreeFunc)(void *,void *) ;
     } Item ;
     /* Constants */
     #define ITEMTYPE_NOTHING 0
@@ -56,6 +57,7 @@
     #define ring_item_isstring(x) (x->nType == ITEMTYPE_STRING)
     #define ring_item_islist(x) (x->nType == ITEMTYPE_LIST)
     #define ring_item_isdouble(x) ( (x->nType == ITEMTYPE_NUMBER) && ( x->NumberFlag == ITEM_NUMBERFLAG_DOUBLE ) )
+    #define ring_item_incdouble(x) ++x->data.dNumber
     /* Functions */
 
     RING_API Item * ring_item_new_gc ( void *pState,unsigned int ItemType ) ;
@@ -95,6 +97,8 @@
     RING_API void ring_item_setint_gc ( void *pState,Item *pItem,int x ) ;
 
     RING_API void ring_item_setstring2_gc ( void *pState,Item *pItem,const char *cStr,int nStrSize ) ;
+
+    RING_API void ring_item_init ( Item *pItem ) ;
     /* Functions without state pointer */
 
     RING_API Item * ring_item_new ( unsigned int ItemType ) ;

@@ -2,6 +2,11 @@
 #ifndef ring_list_h
     #define ring_list_h
     /* Data */
+    typedef struct ListBlocks {
+        void *pValue  ;
+        struct ListBlocks *pNext  ;
+        int nType  ;
+    } ListBlocks ;
     typedef struct List {
         struct Items *pFirst  ;
         struct Items *pLast  ;
@@ -10,8 +15,7 @@
         struct Items *pLastItemLastAccess  ;
         struct Item **pItemsArray  ;
         struct HashTable *pHashTable  ;
-        struct Item *pItemBlock  ;
-        struct Items *pItemsBlock  ;
+        struct ListBlocks *pBlocks  ;
         /* Garbage Collector Data (Reference Counting) */
         ListGCData gc  ;
     } List ;
@@ -20,6 +24,9 @@
     #define RING_LISTOFOBJS_FINDNUMBER 0
     #define RING_LISTREF_INC 1
     #define RING_LISTREF_DEC -1
+    #define RING_LISTBLOCKTYPE_ITEM 1
+    #define RING_LISTBLOCKTYPE_ITEMS 2
+    #define RING_LISTBLOCKTYPE_LIST 3
     /* Macro */
     #define ring_list_isdouble(pList,index) ( ring_list_getitem(pList,index)->NumberFlag == ITEM_NUMBERFLAG_DOUBLE)
     #define ring_list_isint(pList,index) ( ring_list_getitem(pList,index)->NumberFlag == ITEM_NUMBERFLAG_INT )
@@ -27,6 +34,7 @@
     #define ring_list_gethashtable(x) (x->pHashTable)
     #define ring_list_getint(pList,index) ( ring_list_getitem(pList,index)->data.iNumber )
     #define ring_list_getpointer(pList,index) ( ring_list_getitem(pList,index)->data.pPointer )
+    #define ring_list_getpointertype(pList,index) ( ring_list_getitem(pList,index)->nObjectType )
     #define ring_list_getfuncpointer(pList,index) ( ring_list_getitem(pList,index)->data.pFunc )
     #define ring_list_callfuncpointer(pList,index,x) ( ring_list_getitem(pList,index)->data.pFunc(x) )
     #define ring_list_getdouble(pList,index) ring_list_getitem(pList,index)->data.dNumber
@@ -35,6 +43,7 @@
     #define ring_list_getstringsize(pList,index) ( ring_string_size(ring_item_getstring(ring_list_getitem(pList,index))) )
     #define ring_list_getsize(x) (x->nSize)
     #define ring_list_deletelastitem_gc(s,x) ring_list_deleteitem_gc(s,x,ring_list_getsize(x))
+    #define ring_list_incdouble(pList,index) ++ring_list_getitem(pList,index)->data.dNumber
     /*
     **  Functions 
     **  Main List Functions 
@@ -44,7 +53,7 @@
 
     RING_API List * ring_list_new2_gc ( void *pState,List *pList,unsigned int nSize ) ;
 
-    RING_API void ring_list_newitem_gc ( void *pState,List *pList ) ;
+    RING_API Item * ring_list_newitem_gc ( void *pState,List *pList ) ;
 
     RING_API Item * ring_list_getitem ( List *pList,unsigned int index ) ;
 
@@ -57,6 +66,8 @@
     RING_API int ring_list_gettype ( List *pList, unsigned int index ) ;
 
     RING_API void ring_list_clear ( List *pList ) ;
+
+    RING_API void ring_list_addblock_gc ( void *pState,List *pList,void *pMemory,int nType ) ;
     /* int */
 
     RING_API void ring_list_setint_gc ( void *pState,List *pList, unsigned int index ,int number ) ;
@@ -66,7 +77,11 @@
 
     RING_API void ring_list_setpointer_gc ( void *pState,List *pList, unsigned int index ,void *pValue ) ;
 
+    RING_API void ring_list_setpointerandtype_gc ( void *pState,List *pList, unsigned int index ,void *pValue,int nType ) ;
+
     RING_API void ring_list_addpointer_gc ( void *pState,List *pList,void *pValue ) ;
+
+    RING_API void ring_list_addpointerandtype_gc ( void *pState,List *pList,void *pValue,int nType ) ;
     /* Function Pointers */
 
     RING_API void ring_list_setfuncpointer_gc ( void *pState,List *pList, unsigned int index ,void (*pFunc)(void *) ) ;
@@ -254,6 +269,8 @@
     RING_API void ring_list_addringpointer ( List *pList,void *pValue ) ;
 
     RING_API void ring_list_addringpointer_gc ( void *pState,List *pList,void *pValue ) ;
+
+    RING_API void ring_list_addcustomringpointer_gc ( void *pState,List *pList,void *pValue,void (* pFreeFunc)(void *,void *) ) ;
 
     RING_API int ring_list_isobject ( List *pList ) ;
 

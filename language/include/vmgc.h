@@ -5,12 +5,9 @@
     **  Functions 
     **  Item GC Functions 
     */
+    #define ring_vm_gc_cleardata(pItem) pItem->gcnReferenceCount = 0; pItem->gcpFreeFunc = NULL
 
-    void ring_vm_gc_cleardata ( Item *pItem ) ;
-
-    void ring_vm_gc_checkreferences ( VM *pVM ) ;
-
-    void ring_vm_gc_checknewreference ( void *pPointer,int nType ) ;
+    void ring_vm_gc_checknewreference ( void *pPointer,int nType,List *pContainer, int nIndex ) ;
 
     void ring_vm_gc_checkupdatereference ( VM *pVM,List *pList ) ;
 
@@ -19,8 +16,7 @@
     void ring_vm_gc_killreference ( VM *pVM ) ;
 
     void ring_vm_gc_deletetemplists ( VM *pVM ) ;
-
-    void ring_vm_gc_newitemreference ( Item *pItem ) ;
+    #define ring_vm_gc_newitemreference(pItem) pItem->gcnReferenceCount++
 
     void ring_vm_gc_freefunc ( RingState *pState,Item *pItem ) ;
 
@@ -96,6 +92,20 @@
     RING_API void ring_list_enabledontrefagain ( List *pList ) ;
 
     RING_API void ring_list_disabledontrefagain ( List *pList ) ;
+    /* Error on assignment */
+
+    RING_API void ring_list_enableerroronassignment ( List *pList ) ;
+
+    RING_API void ring_list_disableerroronassignment ( List *pList ) ;
+
+    RING_API int ring_list_iserroronassignment ( List *pList ) ;
+    /* Error on assignment2 */
+
+    RING_API void ring_list_enableerroronassignment2 ( List *pList ) ;
+
+    RING_API void ring_list_disableerroronassignment2 ( List *pList ) ;
+
+    RING_API int ring_list_iserroronassignment2 ( List *pList ) ;
     /* Memory Functions (General) */
 
     RING_API void * ring_malloc ( size_t size ) ;
@@ -139,4 +149,9 @@
     void ring_poolmanager_newblockfromsubthread ( RingState *pSubRingState,int nCount,RingState *pMainRingState ) ;
 
     void ring_poolmanager_deleteblockfromsubthread ( RingState *pSubRingState,RingState *pMainRingState ) ;
+    /* VMState Memory Functions */
+
+    VMState * ring_vmstate_new ( RingState *pRingState ) ;
+
+    void ring_vmstate_delete ( void *pState,void *pMemory ) ;
 #endif

@@ -57,7 +57,7 @@ void ring_vm_liststart ( VM *pVM )
         else {
             if ( RING_VM_STACK_ISPOINTER == 0 ) {
                 /* Create the List in the Temp Memory. */
-                ring_vm_newtempvar(pVM, RING_TEMP_VARIABLE ,ring_vm_prevtempmem(pVM));
+                ring_vm_newtempvar(pVM, RING_TEMP_VAR,ring_vm_prevtempmem(pVM));
                 if ( pVM->nLoadAddressScope == RING_VARSCOPE_NOTHING ) {
                     pVM->nLoadAddressScope = RING_VARSCOPE_LOCAL ;
                 }
@@ -69,7 +69,8 @@ void ring_vm_liststart ( VM *pVM )
             else {
                 pVar = (List *) RING_VM_STACK_READP ;
             }
-            RING_VM_STACK_POP ;
+            /* Support code like  aList = [1,2,3] + 4 */
+            ring_vm_dup(pVM);
         }
         if ( nType == RING_OBJTYPE_VARIABLE ) {
             /* Check error on assignment */
@@ -102,7 +103,7 @@ void ring_vm_liststart ( VM *pVM )
     }
     /* Enable Error on Assignment */
     pList = (List *) ring_list_getpointer(pVM->pNestedLists,ring_list_getsize(pVM->pNestedLists));
-    pList->gc.lErrorOnAssignment = 1 ;
+    ring_list_enableerroronassignment(pList);
     /* When using something like Ref([1,2,3]) - Don't create new reference */
     if ( (pNewList != NULL) && (pVM->nFuncExecute > 0) ) {
         ring_list_enabledontref(pNewList);
@@ -284,7 +285,7 @@ void ring_vm_loadindexaddress ( VM *pVM )
                     pVar = ring_list_getlist(pVar,RING_VAR_VALUE);
                     /* Check that it's list not object */
                     if ( ring_vm_oop_isobject(pVar) == 1 ) {
-                        pVM->nSP++ ;
+                        RING_VM_SP_INC ;
                         ring_vm_expr_spoo(pVM,"[]",ring_string_get(pString),ring_string_size(pString));
                     }
                     else {
@@ -302,7 +303,7 @@ void ring_vm_loadindexaddress ( VM *pVM )
                     pVar = ring_item_getlist(pItem);
                     /* Check that it's list not object */
                     if ( ring_vm_oop_isobject(pVar) == 1 ) {
-                        pVM->nSP++ ;
+                        RING_VM_SP_INC ;
                         ring_vm_expr_spoo(pVM,"[]",ring_string_get(pString),ring_string_size(pString));
                     }
                     else {
@@ -342,7 +343,7 @@ void ring_vm_listpushv ( VM *pVM )
             pVM->nRetItemRef-- ;
             return ;
         }
-        pVM->nSP++ ;
+        RING_VM_SP_INC ;
         RING_VM_STACK_SETCVALUE2(ring_string_get(ring_item_getstring(pItem)),ring_string_size(ring_item_getstring(pItem)));
     }
     else if ( ring_item_gettype(pItem) == ITEMTYPE_NUMBER ) {
@@ -369,7 +370,7 @@ void ring_vm_listpushv ( VM *pVM )
             pVM->nRetItemRef-- ;
             return ;
         }
-        pVM->nSP++ ;
+        RING_VM_SP_INC ;
         sprintf( cPointer , "%p" , ring_item_getpointer(pItem) ) ;
         RING_VM_STACK_SETCVALUE2(cPointer,strlen(cPointer));
     }
@@ -384,10 +385,8 @@ void ring_vm_listassignment ( VM *pVM )
     pVar = NULL ;
     if ( (RING_VM_STACK_ISSTRING) && (pVM->nBeforeEqual <= 1) ) {
         cStr1 = RING_VM_STACK_GETSTRINGRAW ;
-        assert(cStr1 != NULL);
         RING_VM_STACK_POP ;
         pItem = (Item *) RING_VM_STACK_READP ;
-        assert(pItem != NULL);
         RING_VM_STACK_POP ;
         /* Check error on assignment */
         if ( ring_vm_checkitemerroronassignment(pVM,pItem) ) {
@@ -410,7 +409,6 @@ void ring_vm_listassignment ( VM *pVM )
         nNum1 = RING_VM_STACK_READN ;
         RING_VM_STACK_POP ;
         pItem = (Item *) RING_VM_STACK_READP ;
-        assert(pItem != NULL);
         RING_VM_STACK_POP ;
         /* Check error on assignment */
         if ( ring_vm_checkitemerroronassignment(pVM,pItem) ) {
@@ -445,6 +443,10 @@ void ring_vm_listassignment ( VM *pVM )
             ring_item_settype_gc(pVM->pRingState,pItem,ITEMTYPE_LIST);
         }
         pList = ring_item_getlist(pItem);
+        /* Check if we are assigning the same item to itself, i.e. aList[x] = aList[x] */
+        if ( pList == pVar ) {
+            return ;
+        }
         if ( ring_list_isref(pVar) ) {
             ring_list_assignreftoitem_gc(pVM->pRingState,pVar,pItem);
         }

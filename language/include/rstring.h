@@ -74,4 +74,8 @@
     RING_API String * ring_string_delete ( String *pString ) ;
 
     RING_API void ring_string_setfromint ( String *pString,int x ) ;
+
+    RING_API void ring_string_word ( const char *cStr,int nIndex,char *cOutput ) ;
+
+    RING_API void ring_string_swaptwostrings ( String *pString1,String *pString2 ) ;
 #endif

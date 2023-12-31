@@ -49,6 +49,9 @@
         /* Pool Manager */
         PoolManager vPoolManager  ;
         unsigned int lStartPoolManager : 1  ;
+        unsigned int lDisablePoolManager : 1  ;
+        unsigned int lCreateListsUsingBlocks : 1  ;
+        unsigned int lDontCheckStateBlocks : 1  ;
         /* Avoid line number ( when we use eval() from VM ) */
         unsigned int lNoLineNumber : 1  ;
         /* Custom Global Scope */
@@ -72,7 +75,7 @@
         int nInstructionsCount  ;
     } RingState ;
     /* Constants */
-    #define RING_STATE_VERSION "1.18"
+    #define RING_STATE_VERSION "1.19"
     /* MACRO */
     #define RING_STATE_CHECKPRINTRULES if ( pParser->pRingState->nPrintRules )
     /* General Options (Only for ring_state_main()) */
