@@ -17,9 +17,11 @@
 		/* Literal Type "  or ' */
 		char cLiteral  ;
 		/* Multiline comment end ( 0 = start  1 = * ) */
-		char cMLComment  ;
+		char nMLComment  ;
 		/* Support comments that starts with hash */
 		char lHashComments  ;
+		/* Multi-Character Operators */
+		char lMultiCharOperators  ;
 	} Scanner ;
 	typedef enum SCANNER_KEYWORD {
 		K_IF=1 ,
@@ -29,6 +31,7 @@
 		K_AND ,
 		K_NOT ,
 		K_FOR ,
+		K_FOREACH ,
 		K_NEW ,
 		K_FUNC ,
 		K_FROM ,
@@ -86,22 +89,20 @@
 		K_ENABLEHASHCOMMENTS ,
 		K_DISABLEHASHCOMMENTS 
 	} SCANNER_KEYWORD ;
-	static const char * RING_KEYWORDS[] = {"IF","TO","OR","AND","NOT","FOR","NEW","FUNC", 
-	
-	"FROM","NEXT","LOAD","ELSE","SEE","WHILE","OK","CLASS","RETURN","BUT", 
-	
-	"END","GIVE","BYE","EXIT","TRY","CATCH","DONE","SWITCH","ON","OTHER","OFF", 
-	
-	"IN","LOOP","PACKAGE","IMPORT","PRIVATE","STEP","DO","AGAIN","CALL","ELSEIF", 
-	
-	"PUT","GET","CASE","DEF","ENDFUNC","ENDCLASS","ENDPACKAGE", 
-	
-	"ENDIF","ENDFOR","ENDWHILE","ENDSWITCH","ENDTRY", 
-	
-	"FUNCTION","ENDFUNCTION","BREAK","CONTINUE", 
-	
+	/*
+	**  The keywords starting from ChangeRingKeyword are sensitive to the order and keywords count 
+	**  if you will add new keywords revise constants and ring_scanner_checktoken() 
+	*/
+	static const char * RING_KEYWORDS[] = {"IF","TO","OR","AND","NOT","FOR","FOREACH","NEW","FUNC",
+	"FROM","NEXT","LOAD","ELSE","SEE","WHILE","OK","CLASS","RETURN","BUT",
+	"END","GIVE","BYE","EXIT","TRY","CATCH","DONE","SWITCH","ON","OTHER","OFF",
+	"IN","LOOP","PACKAGE","IMPORT","PRIVATE","STEP","DO","AGAIN","CALL","ELSEIF",
+	"PUT","GET","CASE","DEF","ENDFUNC","ENDCLASS","ENDPACKAGE",
+	"ENDIF","ENDFOR","ENDWHILE","ENDSWITCH","ENDTRY",
+	"FUNCTION","ENDFUNCTION","BREAK","CONTINUE",
 	"CHANGERINGKEYWORD","CHANGERINGOPERATOR","LOADSYNTAX",
 	"ENABLEHASHCOMMENTS","DISABLEHASHCOMMENTS"} ;
+	#define RING_SCANNER_KEYWORDSCOUNT 61
 	typedef enum SCANNER_OPERATOR {
 		OP_PLUS = 1 ,
 		OP_MINUS ,
@@ -145,6 +146,10 @@
 		OP_SHREQUAL ,
 		OP_POWEQUAL 
 	} SCANNER_OPERATOR ;
+	/* Operators Array */
+	static const char * RING_OPERATORS[] = {"+","-","*","/","%",".","(",")","=",
+	",","!",">","<","[","]",":","{","}","&","|","~","^","?"} ;
+	#define RING_SCANNER_OPERATORSCOUNT 23
 	#define RING_SCANNER_TOKENTYPE 1
 	#define RING_SCANNER_TOKENVALUE 2
 	#define RING_SCANNER_TOKENINDEX 3
@@ -163,11 +168,11 @@
 	#define SCANNER_STATE_CHANGEKEYWORD 4
 	#define SCANNER_STATE_CHANGEOPERATOR 5
 	#define SCANNER_STATE_LOADSYNTAX 6
-	#define RING_SCANNER_CHANGERINGKEYWORD 56
-	#define RING_SCANNER_CHANGERINGOPERATOR 57
-	#define RING_SCANNER_LOADSYNTAX 58
-	#define RING_SCANNER_ENABLEHASHCOMMENTS 59
-	#define RING_SCANNER_DISABLEHASHCOMMENTS 60
+	#define RING_SCANNER_CHANGERINGKEYWORD 57
+	#define RING_SCANNER_CHANGERINGOPERATOR 58
+	#define RING_SCANNER_LOADSYNTAX 59
+	#define RING_SCANNER_ENABLEHASHCOMMENTS 60
+	#define RING_SCANNER_DISABLEHASHCOMMENTS 61
 	#define SCANNER_FLOATMARK_START 0
 	#define SCANNER_FLOATMARK_NUMBER 1
 	#define SCANNER_FLOATMARK_NUMBERDOT 2

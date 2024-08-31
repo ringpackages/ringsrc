@@ -97,13 +97,12 @@ RING_API void ring_list_copy_gc ( void *pState,List *pNewList, List *pList )
 RING_API void ring_list_deleteallitems_gc ( void *pState,List *pList )
 {
 	Items *pItems,*pItemsNext  ;
-	ListBlocks *pBlocks  ;
-	pItems = pList->pFirst ;
+	pItems = pList->pLast ;
 	if ( pItems != NULL ) {
 		pItemsNext = pItems ;
 		/* Delete Items */
 		while ( pItemsNext != NULL ) {
-			pItemsNext = pItems->pNext ;
+			pItemsNext = pItems->pPrev ;
 			ring_items_delete_gc(pState,pItems);
 			pItems = pItemsNext ;
 		}
@@ -111,6 +110,12 @@ RING_API void ring_list_deleteallitems_gc ( void *pState,List *pList )
 	pList->pFirst = NULL ;
 	pList->pLast = NULL ;
 	pList->nSize = 0 ;
+	ring_list_finishdelete_gc(pState,pList);
+}
+
+RING_API void ring_list_finishdelete_gc ( void *pState,List *pList )
+{
+	ListBlocks *pBlocks  ;
 	ring_list_clearcache(pState,pList);
 	/* Free HashTable */
 	if ( pList->pHashTable != NULL ) {
@@ -120,6 +125,7 @@ RING_API void ring_list_deleteallitems_gc ( void *pState,List *pList )
 	while ( pList->pBlocks != NULL ) {
 		/* Unregister the block */
 		if ( pList->pBlocks->nType == RING_LISTBLOCKTYPE_ITEM ) {
+			ring_state_willunregisterblock(pState,((struct Item *) pList->pBlocks->pValue ) + 1);
 			ring_state_unregisterblock(pState,((struct Item *) pList->pBlocks->pValue ) + 1);
 		}
 		else if ( pList->pBlocks->nType == RING_LISTBLOCKTYPE_ITEMS ) {
@@ -208,19 +214,24 @@ RING_API Item * ring_list_newitem_gc ( void *pState,List *pList )
 {
 	Items *pItems  ;
 	pItems = ring_items_new_gc(pState);
+	ring_list_newitembyitemsptr_gc(pState,pList,pItems);
+	return pItems->pValue ;
+}
+
+RING_API void ring_list_newitembyitemsptr_gc ( void *pState,List *pList,Items *pItems )
+{
 	if ( (pList->nSize) > 0 ) {
 		pList->pLast->pNext = pItems ;
 		pItems->pPrev = pList->pLast ;
 		pList->pLast = pItems ;
+		/* Refresh The Cache */
+		ring_list_clearcache(pState,pList);
 	}
 	else {
 		pList->pFirst = pItems ;
 		pList->pLast = pItems ;
 	}
-	pList->nSize = pList->nSize + 1 ;
-	/* Refresh The Cache */
-	ring_list_clearcache(pState,pList);
-	return pItems->pValue ;
+	pList->nSize++ ;
 }
 
 RING_API Item * ring_list_getitem ( List *pList,unsigned int nIndex )
@@ -256,7 +267,7 @@ RING_API Item * ring_list_getitem ( List *pList,unsigned int nIndex )
 			return pList->pLastItemLastAccess->pValue ;
 		}
 		/* Quickly get item after the current item */
-		else if ( ( nIndex > pList->nNextItemAfterLastAccess )  && ( pList->pLastItemLastAccess != NULL ) ) {
+		else if ( (nIndex > pList->nNextItemAfterLastAccess ) && ( (nIndex - pList->nNextItemAfterLastAccess) < (pList->nSize - nIndex))  && ( pList->pLastItemLastAccess != NULL ) ) {
 			pItems = pList->pLastItemLastAccess ;
 			for ( x = pList->nNextItemAfterLastAccess - 1 ; x <= nIndex ; x++ ) {
 				if ( x == nIndex ) {
@@ -268,7 +279,7 @@ RING_API Item * ring_list_getitem ( List *pList,unsigned int nIndex )
 			return pItem ;
 		}
 		/* Quickly get item before the current item */
-		else if ( ( ( pList->nNextItemAfterLastAccess - nIndex ) < nIndex ) && ( pList->pLastItemLastAccess != NULL ) ) {
+		else if ( (nIndex < pList->nNextItemAfterLastAccess) &&  ( (pList->nNextItemAfterLastAccess - nIndex) < nIndex)  && ( pList->pLastItemLastAccess != NULL ) ) {
 			pItems = pList->pLastItemLastAccess ;
 			for ( x = pList->nNextItemAfterLastAccess - 1 ; x >= nIndex ; x-- ) {
 				if ( x == nIndex ) {
@@ -279,14 +290,28 @@ RING_API Item * ring_list_getitem ( List *pList,unsigned int nIndex )
 			}
 			return pItem ;
 		}
-		/* Linear Search  From Start */
-		pItems = pList->pFirst ;
-		for ( x = 1 ; x <= nIndex ; x++ ) {
-			if ( x == nIndex ) {
-				ring_list_setcache(NULL,pList,pItems,nIndex+1);
+		if ( nIndex < (pList->nSize - nIndex) ) {
+			/* Linear Search  From Start */
+			pItems = pList->pFirst ;
+			for ( x = 1 ; x <= nIndex ; x++ ) {
+				if ( x == nIndex ) {
+					ring_list_setcache(NULL,pList,pItems,nIndex+1);
+				}
+				pItem = pItems->pValue ;
+				pItems = pItems->pNext ;
 			}
-			pItem = pItems->pValue ;
-			pItems = pItems->pNext ;
+		}
+		else {
+			/* Linear search from the last item */
+			pItems = pList->pLast ;
+			for ( x = pList->nSize ; x >= nIndex ; x-- ) {
+				if ( x == nIndex ) {
+					ring_list_setcache(NULL,pList,pItems,nIndex+1);
+				}
+				pItem = pItems->pValue ;
+				pItems = pItems->pPrev ;
+			}
+			return pItem ;
 		}
 	}
 	return pItem ;
@@ -464,12 +489,9 @@ RING_API void ring_list_addstring2_gc ( void *pState,List *pList,const char *cSt
 RING_API List * ring_list_newlist_gc ( void *pState,List *pList )
 {
 	Item *pItem  ;
-	List *pList2  ;
-	ring_list_newitem_gc(pState,pList);
-	pItem = ring_list_getitem(pList,ring_list_getsize(pList));
+	pItem = ring_list_newitem_gc(pState,pList);
 	ring_item_settype_gc(pState,pItem,ITEMTYPE_LIST);
-	pList2 = ring_item_getlist(pItem);
-	return pList2 ;
+	return ring_item_getlist(pItem) ;
 }
 
 RING_API void ring_list_setlist_gc ( void *pState,List *pList, unsigned int nIndex )
@@ -486,6 +508,15 @@ RING_API List * ring_list_getlist ( List *pList, unsigned int nIndex )
 	pItem = ring_list_getitem(pList,nIndex);
 	pList2 = ring_item_getlist(pItem);
 	return pList2 ;
+}
+
+RING_API List * ring_list_newlistbyptr_gc ( void *pState,List *pList,List *pNewList )
+{
+	Item *pItem  ;
+	pItem = ring_list_newitem_gc(pState,pList);
+	pItem->nType = ITEMTYPE_LIST ;
+	pItem->data.pList = pNewList ;
+	return pNewList ;
 }
 /* Function Pointers */
 
@@ -907,7 +938,9 @@ RING_API void ring_list_genhashtable_gc ( void *pState,List *pList )
 	}
 	pList->pHashTable = ring_hashtable_new_gc(pState);
 	for ( x = 1 ; x <= ring_list_getsize(pList) ; x++ ) {
-		ring_hashtable_newnumber_gc(pState,pList->pHashTable,ring_list_getstring(pList,x),x);
+		if ( ring_list_isstring(pList,x) ) {
+			ring_hashtable_newnumber_gc(pState,pList->pHashTable,ring_list_getstring(pList,x),x);
+		}
 	}
 }
 
@@ -921,8 +954,12 @@ RING_API void ring_list_genhashtable2_gc ( void *pState,List *pList )
 	}
 	pList->pHashTable = ring_hashtable_new_gc(pState);
 	for ( x = 1 ; x <= ring_list_getsize(pList) ; x++ ) {
-		pList2 = ring_list_getlist(pList,x);
-		ring_hashtable_newpointer_gc(pState,pList->pHashTable,ring_list_getstring(pList2,RING_LIST_KEYINDEX),pList2);
+		if ( ring_list_islist(pList,x) ) {
+			pList2 = ring_list_getlist(pList,x);
+			if ( (ring_list_getsize(pList2) >= RING_LIST_KEYINDEX) && (ring_list_isstring(pList2,RING_LIST_KEYINDEX)) ) {
+				ring_hashtable_newpointer_gc(pState,pList->pHashTable,ring_list_getstring(pList2,RING_LIST_KEYINDEX),pList2);
+			}
+		}
 	}
 }
 /* Define functions without State Pointer */
@@ -1144,7 +1181,7 @@ RING_API void ring_list_print2 ( List *pList,unsigned int nDecimals )
 				}
 				else {
 					sprintf(cOptions , "%s%df" , "%.",nDecimals);
-					#if RING_MSDOS
+					#if RING_NOSNPRINTF
 						sprintf(cString, cOptions, y);
 					#else
 						snprintf(cString, RING_MEDIUMBUF, cOptions, y);
@@ -1268,7 +1305,7 @@ RING_API double ring_list_getdoublecolumn ( List *pList,unsigned int nIndex,unsi
 		return ring_list_getdouble(pList,nIndex) ;
 	}
 	else {
-		if ( strcmp(cAttribute,"") == 0 ) {
+		if ( strcmp(cAttribute,RING_CSTR_EMPTY) == 0 ) {
 			return ring_list_getdouble(ring_list_getlist(pList,nIndex),nColumn) ;
 		}
 		else {
@@ -1292,12 +1329,12 @@ RING_API double ring_list_getdoublecolumn ( List *pList,unsigned int nIndex,unsi
 RING_API char * ring_list_getstringcolumn ( List *pList,unsigned int nIndex,unsigned int nColumn,const char *cAttribute )
 {
 	int nPos  ;
-	static char nullstring[] = "" ;
+	static char nullstring[] = RING_CSTR_EMPTY ;
 	if ( nColumn == 0 ) {
 		return ring_list_getstring(pList,nIndex) ;
 	}
 	else {
-		if ( strcmp(cAttribute,"") == 0 ) {
+		if ( strcmp(cAttribute,RING_CSTR_EMPTY) == 0 ) {
 			return ring_list_getstring(ring_list_getlist(pList,nIndex),nColumn) ;
 		}
 		else {

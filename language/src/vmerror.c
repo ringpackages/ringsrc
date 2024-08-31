@@ -21,7 +21,7 @@ RING_API void ring_vm_error ( VM *pVM,const char *cStr )
 					if ( ring_vm_oop_ismethod(pVM, pList,RING_CSTR_BRACEERROR) ) {
 						pVM->lActiveError = 0 ;
 						ring_list_setstring_gc(pVM->pRingState,ring_list_getlist(pVM->pDefinedGlobals,RING_GLOBALVARPOS_ERRORMSG),RING_VAR_VALUE,cStr);
-						ring_vm_eval(pVM,RING_CSTR_RETBRACEERROR);
+						ring_vm_callfuncwithouteval(pVM, RING_CSTR_BRACEERROR, RING_TRUE);
 						return ;
 					}
 				}
@@ -35,7 +35,7 @@ RING_API void ring_vm_error ( VM *pVM,const char *cStr )
 		}
 		/* Trace */
 		pVM->lActiveError = 0 ;
-		ring_vm_traceevent(pVM,RING_VM_TRACEEVENT_ERROR);
+		RING_VM_TRACEEVENT(RING_VM_TRACEEVENT_ERROR);
 		if ( pVM->lPassError  == 1 ) {
 			pVM->lPassError = 0 ;
 			return ;
@@ -90,7 +90,7 @@ RING_API void ring_vm_showerrormessage ( VM *pVM,const char *cStr )
 	cOldFile = NULL ;
 	lFunctionCall = 0 ;
 	nRecursion = 0 ;
-	for ( x = ring_list_getsize(pVM->pFuncCallList) ; x >= 1 ; x-- ) {
+	for ( x = RING_VM_FUNCCALLSCOUNT ; x >= 1 ; x-- ) {
 		pFuncCall = RING_VM_GETFUNCCALL(x) ;
 		/*
 		**  If we have ICO_LOADFUNC but not ICO_CALL then we need to pass 
@@ -102,7 +102,7 @@ RING_API void ring_vm_showerrormessage ( VM *pVM,const char *cStr )
 		}
 		if ( pFuncCall->nType == RING_FUNCTYPE_SCRIPT ) {
 			cStr2 = (char *) pFuncCall->cName ;
-			if ( strcmp("",cStr2) == 0 ) {
+			if ( strcmp(cStr2,RING_CSTR_EMPTY) == 0 ) {
 				break ;
 			}
 			/* Don't repeat messages in case of recursion */
@@ -112,7 +112,7 @@ RING_API void ring_vm_showerrormessage ( VM *pVM,const char *cStr )
 				while ( pFuncCall2->nType != RING_FUNCTYPE_SCRIPT ) {
 					nPos-- ;
 					if ( nPos > 0 ) {
-						pFuncCall2 = (FuncCall *) ring_list_getpointer(pVM->pFuncCallList,nPos) ;
+						pFuncCall2 = RING_VM_GETFUNCCALL(nPos) ;
 					}
 					else {
 						break ;
@@ -210,14 +210,14 @@ void ring_vm_traceevent ( VM *pVM,char nEvent )
 		/* Add File Name */
 		ring_list_addstring_gc(pVM->pRingState,pVM->pTraceData,pVM->cFileName);
 		/* Add Function/Method Name */
-		if ( ring_list_getsize(pVM->pFuncCallList) > 0 ) {
+		if ( RING_VM_FUNCCALLSCOUNT > 0 ) {
 			pFuncCall = RING_VM_LASTFUNCCALL ;
 			ring_list_addstring_gc(pVM->pRingState,pVM->pTraceData,pFuncCall->cName);
 			/* Method or Function */
 			ring_list_adddouble_gc(pVM->pRingState,pVM->pTraceData,pFuncCall->lMethod);
 		}
 		else {
-			ring_list_addstring_gc(pVM->pRingState,pVM->pTraceData,"");
+			ring_list_addstring_gc(pVM->pRingState,pVM->pTraceData,RING_CSTR_EMPTY);
 			/* Method or Function */
 			ring_list_adddouble_gc(pVM->pRingState,pVM->pTraceData,RING_NOVALUE);
 		}

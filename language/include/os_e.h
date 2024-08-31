@@ -36,8 +36,7 @@
 	void ring_vm_os_system ( void *pPointer ) ;
 
 	void ring_vm_os_shutdown ( void *pPointer ) ;
-	#if RING_MSDOS
-	#else
+	#if RING_EXTRAOSFUNCTIONS
 		/* Environment Variables */
 
 		void ring_vm_os_sysget ( void *pPointer ) ;
@@ -57,7 +56,6 @@
 	#define RING_VM_POINTER_LIBNAME "os"
 	#define RING_VM_UNSUPPORTEDFUNCTION "Warning: This function is not supported in this build!"
 	#ifdef _WIN32
-		#include "windows.h"
 		typedef int (WINAPI *LPFN_ISWOW64PROCESS) (HANDLE, PBOOL); ;
 		static LPFN_ISWOW64PROCESS fnCheckWindows64  ;
 		#define ring_vm_os_gettime clock_gettime

@@ -5,6 +5,9 @@
 	/* Windows only */
 	#include <direct.h>
 	#define GetCurrentDir _getcwd
+	#ifndef RING_EXTENSION
+		#include <windows.h>
+	#endif
 #else
 	#if RING_MSDOS
 	#else

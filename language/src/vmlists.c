@@ -2,6 +2,20 @@
 
 #include "ring.h"
 
+void ring_vm_newnestedlists ( VM *pVM )
+{
+	pVM->nListStart = 0 ;
+}
+
+void ring_vm_restorenestedlists ( VM *pVM,int nListStart,int nNestedLists )
+{
+	pVM->nListStart = nListStart ;
+	if ( ring_list_getsize(pVM->pNestedLists) > nNestedLists ) {
+		ring_vm_removelistprotection(pVM,pVM->pNestedLists,nNestedLists+1);
+		ring_vm_backstate(pVM,pVM->pNestedLists,nNestedLists);
+	}
+}
+
 void ring_vm_liststart ( VM *pVM )
 {
 	List *pVar,*pList,*pNewList  ;
@@ -16,7 +30,7 @@ void ring_vm_liststart ( VM *pVM )
 		/* Check if we need to create temp list when we call function, pass list by value */
 		nCont = 0 ;
 		if ( (pVM->nSP > pVM->nFuncSP) && RING_VM_STACK_ISPOINTER ) {
-			if ( pVM->pAssignment != RING_VM_STACK_READP ) {
+			if ( ! RING_VM_STACK_ISASSIGNMENTDEST ) {
 				nCont = 1 ;
 			}
 			else {
@@ -48,7 +62,7 @@ void ring_vm_liststart ( VM *pVM )
 		if ( pVM->nNoSetterMethod == RING_NOSETTERMETHOD_IGNORESETPROPERTY ) {
 			nCont = 0 ;
 		}
-		if ( (pVM->nFuncExecute > 0)  || ( nCont == 1 ) ) {
+		if ( nCont == 1 ) {
 			/* Create the Temp list */
 			ring_vm_createtemplist(pVM);
 			pVar = (List *) RING_VM_STACK_READP ;
@@ -70,7 +84,7 @@ void ring_vm_liststart ( VM *pVM )
 				pVar = (List *) RING_VM_STACK_READP ;
 			}
 			/* Support code like  aList = [1,2,3] + 4 */
-			ring_vm_dup(pVM);
+			ring_vm_stack_dup(pVM);
 		}
 		if ( nType == RING_OBJTYPE_VARIABLE ) {
 			/* Check error on assignment */
@@ -105,7 +119,7 @@ void ring_vm_liststart ( VM *pVM )
 	pList = (List *) ring_list_getpointer(pVM->pNestedLists,ring_list_getsize(pVM->pNestedLists));
 	ring_list_enableerroronassignment(pList);
 	/* When using something like Ref([1,2,3]) - Don't create new reference */
-	if ( (pNewList != NULL) && (pVM->nFuncExecute > 0) ) {
+	if ( (pNewList != NULL) && (ring_vm_funccall_beforecall(pVM)) ) {
 		ring_list_enabledontref(pNewList);
 	}
 }
@@ -169,6 +183,20 @@ void ring_vm_listitem ( VM *pVM )
 		}
 		ring_list_delete_gc(pVM->pRingState,pList4);
 	}
+}
+
+void ring_vm_listitemn ( VM *pVM )
+{
+	List *pList  ;
+	pList = (List *) ring_list_getpointer(pVM->pNestedLists,ring_list_getsize(pVM->pNestedLists));
+	ring_list_adddouble_gc(pVM->pRingState,pList,RING_VM_IR_READD);
+}
+
+void ring_vm_listitemc ( VM *pVM )
+{
+	List *pList  ;
+	pList = (List *) ring_list_getpointer(pVM->pNestedLists,ring_list_getsize(pVM->pNestedLists));
+	ring_list_addstring_gc(pVM->pRingState,pList,RING_VM_IR_READCVALUE(RING_VM_IR_REG1));
 }
 
 void ring_vm_listend ( VM *pVM )
@@ -262,7 +290,7 @@ void ring_vm_loadindexaddress ( VM *pVM )
 				ring_vm_error(pVM,RING_VM_ERROR_INDEXOUTOFRANGE);
 				return ;
 			}
-			cStr2[0] = RING_VM_STACK_READC[((int) nNum1)-1] ;
+			cStr2[0] = RING_VM_STACK_READC[((unsigned int) nNum1)-1] ;
 			cStr2[1] = '\0' ;
 			RING_VM_STACK_SETCVALUE2(cStr2,RING_ONE);
 			return ;
@@ -373,14 +401,14 @@ void ring_vm_listpushv ( VM *pVM )
 	}
 }
 
-void ring_vm_listassignment ( VM *pVM )
+void ring_vm_listassignment ( VM *pVM,int nBeforeEqual )
 {
 	Item *pItem  ;
 	String *pStr1, *pString  ;
 	double nNum1  ;
 	List *pList,*pVar, *pTempList  ;
 	pVar = NULL ;
-	if ( (RING_VM_STACK_ISSTRING) && (pVM->nBeforeEqual <= OP_PLUSEQUAL) ) {
+	if ( (RING_VM_STACK_ISSTRING) && (nBeforeEqual <= OP_PLUSEQUAL) ) {
 		pStr1 = RING_VM_STACK_GETSTRINGRAW ;
 		RING_VM_STACK_POP ;
 		pItem = (Item *) RING_VM_STACK_READP ;
@@ -389,7 +417,7 @@ void ring_vm_listassignment ( VM *pVM )
 		if ( ring_vm_checkitemerroronassignment(pVM,pItem) ) {
 			return ;
 		}
-		if ( pVM->nBeforeEqual == OP_EQUAL ) {
+		if ( nBeforeEqual == OP_EQUAL ) {
 			ring_item_setstring2_gc(pVM->pRingState,pItem, ring_string_get(pStr1),ring_string_size(pStr1));
 		}
 		else {
@@ -411,14 +439,14 @@ void ring_vm_listassignment ( VM *pVM )
 		if ( ring_vm_checkitemerroronassignment(pVM,pItem) ) {
 			return ;
 		}
-		if ( pVM->nBeforeEqual == OP_EQUAL ) {
+		if ( nBeforeEqual == OP_EQUAL ) {
 			ring_item_setdouble_gc(pVM->pRingState,pItem , nNum1);
 		}
 		else {
-			ring_vm_beforeequalitem(pVM,pItem,nNum1);
+			ring_vm_beforeequalitem(pVM,pItem,nNum1,nBeforeEqual);
 		}
 	}
-	else if ( (RING_VM_STACK_ISPOINTER) && (pVM->nBeforeEqual == OP_EQUAL) ) {
+	else if ( (RING_VM_STACK_ISPOINTER) && (nBeforeEqual == OP_EQUAL) ) {
 		/* Get Source */
 		if ( RING_VM_STACK_OBJTYPE == RING_OBJTYPE_VARIABLE ) {
 			pVar = (List *) RING_VM_STACK_READP ;
@@ -480,7 +508,7 @@ void ring_vm_listgetvalue ( VM *pVM,List *pVar,const char *cStr )
 		for ( x = 1 ; x <= ring_list_getsize(pVar) ; x++ ) {
 			if ( ring_list_islist(pVar,x) ) {
 				pList = ring_list_getlist(pVar,x);
-				if ( ring_list_getsize(pList)  >= RING_LISTHASH_SIZE ) {
+				if ( ring_list_getsize(pList)  == RING_LISTHASH_SIZE ) {
 					if ( ring_list_isstring(pList,RING_LISTHASH_KEY) ) {
 						cStr2 = ring_list_getstring(pList,RING_LISTHASH_KEY);
 						if ( ring_vm_strcmpnotcasesensitive(cStr,cStr2)  == 0 ) {
@@ -497,7 +525,7 @@ void ring_vm_listgetvalue ( VM *pVM,List *pVar,const char *cStr )
 	/* Add Item if not found */
 	pList = ring_list_newlist_gc(pVM->pRingState,pVar);
 	ring_list_addstring_gc(pVM->pRingState,pList,cStr);
-	ring_list_addstring_gc(pVM->pRingState,pList,"");
+	ring_list_addstring_gc(pVM->pRingState,pList,RING_CSTR_EMPTY);
 	pItem = ring_list_getitem(pList,RING_LISTHASH_VALUE);
 	RING_VM_STACK_PUSHPVALUE(pItem);
 	RING_VM_STACK_OBJTYPE = RING_OBJTYPE_LISTITEM ;

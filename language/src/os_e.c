@@ -20,8 +20,7 @@ void ring_vm_os_loadfunctions ( RingState *pRingState )
 	RING_API_REGISTER("getarch",ring_vm_os_getarch);
 	RING_API_REGISTER("system",ring_vm_os_system);
 	RING_API_REGISTER("shutdown",ring_vm_os_shutdown);
-	#if RING_MSDOS
-	#else
+	#if RING_EXTRAOSFUNCTIONS
 		/* Environment Variables */
 		RING_API_REGISTER("sysget",ring_vm_os_sysget);
 		RING_API_REGISTER("sysset",ring_vm_os_sysset);
@@ -172,7 +171,9 @@ void ring_vm_os_system ( void *pPointer )
 		return ;
 	}
 	if ( RING_API_ISSTRING(1) ) {
-		system(RING_API_GETSTRING(1));
+		#if RING_SYSTEMFUNCTION
+			system(RING_API_GETSTRING(1));
+		#endif
 	}
 	else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
@@ -189,8 +190,7 @@ void ring_vm_os_shutdown ( void *pPointer )
 	}
 	exit(RING_EXIT_OK);
 }
-#if RING_MSDOS
-#else
+#if RING_EXTRAOSFUNCTIONS
 	/* Environment Variables */
 
 	void ring_vm_os_sysget ( void *pPointer )
@@ -206,7 +206,7 @@ void ring_vm_os_shutdown ( void *pPointer )
 				RING_API_RETSTRING(pData);
 			}
 			else {
-				RING_API_RETSTRING("");
+				RING_API_RETSTRING(RING_CSTR_EMPTY);
 			}
 		}
 		else {
@@ -240,7 +240,7 @@ void ring_vm_os_shutdown ( void *pPointer )
 				puts(RING_VM_UNSUPPORTEDFUNCTION);
 				return 0 ;
 			#else
-				return (int) _putenv_s(name, "") ;
+				return (int) _putenv_s(name, RING_CSTR_EMPTY) ;
 			#endif
 		}
 	#endif
@@ -298,11 +298,12 @@ void ring_vm_os_shutdown ( void *pPointer )
 	*/
 	#if defined __MACH__
 
-		int ring_vm_os_gettime ( int clk_id, struct timespec* ts )
+		int ring_vm_os_gettime ( int clk_id, struct timespec* pTS )
 		{
-			uint64_t nsec = mach_absolute_time() ;
-			ts->tv_sec = nsec / NANOSEC ;
-			ts->tv_nsec = nsec % NANOSEC; ;
+			RING_UNSIGNEDLONGLONG nSec  ;
+			nSec = mach_absolute_time() ;
+			pTS->tv_sec = nSec / NANOSEC ;
+			pTS->tv_nsec = nSec % NANOSEC; ;
 			return 0 ;
 		}
 	#endif

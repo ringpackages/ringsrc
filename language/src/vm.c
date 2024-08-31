@@ -16,16 +16,23 @@ VM * ring_vm_new ( RingState *pRingState )
 	pVM->pFunctionsMap = NULL ;
 	pVM->nOPCode = 0 ;
 	pVM->nSP = 0 ;
-	pVM->pMem = ring_list_new_gc(pVM->pRingState,RING_ZERO);
 	pVM->pActiveMem = NULL ;
 	pVM->pTempMem = ring_list_new_gc(pVM->pRingState,RING_ZERO);
 	pVM->nLineNumber = 1 ;
-	/* Information to test the lifetime of the local scope */
+	/*
+	**  Set data before creating new scope 
+	**  Information to test the lifetime of the local scope 
+	*/
 	pVM->nScopeID = 0 ;
-	ring_vm_newscope(pVM);
+	/* Functions Call count (Checked by ring_vm_newscope() function to avoid overflow) */
+	pVM->nCurrentFuncCall = RING_ZERO ;
+	memset(&(pVM->aFuncCall[0]),RING_ZERO,RING_VM_STACK_SIZE*sizeof(FuncCall));
+	pVM->nCurrentScope = RING_ZERO ;
 	for ( x = 0 ; x < RING_VM_STACK_SIZE ; x++ ) {
 		ring_item_init(&(pVM->aStack[x]));
+		ring_list_new2_gc(pVM->pRingState,RING_VM_GETSCOPE(x),RING_ZERO);
 	}
+	ring_vm_newscope(pVM);
 	/*
 	**  Flag ( 0 = check NULL variable in PUSHV  , greater than 0 = Ignore null variable ) 
 	**  Class Region (After the Class Name) 
@@ -39,20 +46,16 @@ VM * ring_vm_new ( RingState *pRingState )
 	ring_vm_addglobalvariables(pVM);
 	pVM->pActiveMem = pActiveMem ;
 	/* Lists */
-	pVM->nListStart = 0 ;
-	pVM->pNestedLists = ring_list_new_gc(pVM->pRingState,RING_ZERO);
+	ring_vm_newnestedlists(pVM);
+	pVM->pNestedLists = ring_list_new_gc(pVM->pRingState,RING_ZERO) ;
 	/* Support for nested Load Instructions */
 	pVM->nBlockCounter = 0 ;
 	pVM->pPCBlockFlag = ring_list_new_gc(pVM->pRingState,RING_ZERO);
 	/* Calling Functions */
 	pVM->pFuncCallList = ring_list_new_gc(pVM->pRingState,RING_ZERO);
 	pVM->nFuncSP = 0 ;
-	pVM->nFuncExecute = 0 ;
-	if ( pRingState->pRingCFunctions == NULL ) {
-		pRingState->pRingCFunctions = ring_list_new_gc(pVM->pRingState,RING_ZERO);
-	}
-	pVM->pCFunctionsList = pRingState->pRingCFunctions ;
 	pVM->lCallMainFunction = 0 ;
+	pVM->pCFunction = NULL ;
 	/* Support for Exit/Loop Commands inside For/While loops. */
 	pVM->pExitMark = ring_list_new_gc(pVM->pRingState,RING_ZERO);
 	pVM->pLoopMark = ring_list_new_gc(pVM->pRingState,RING_ZERO);
@@ -117,8 +120,9 @@ VM * ring_vm_new ( RingState *pRingState )
 	pVM->nEvalReallocationSize = 0 ;
 	/* Flag ( 1 = we need space over allocated size so we have to do reallocation ) */
 	pVM->lEvalReallocationFlag = 0 ;
-	/* Parameters Count Passed to C Function */
+	/* Parameters Passed to C Function */
 	pVM->nCFuncParaCount = 0 ;
+	pVM->nCFuncSP = 0 ;
 	/*
 	**  Flag to Ignore NULL output after calling C Function 
 	**  This flag is used by the len() function when we use len(object) 
@@ -157,7 +161,7 @@ VM * ring_vm_new ( RingState *pRingState )
 	/* Flag that we have runtime error to avoid calling the error function again */
 	pVM->lActiveError = 0 ;
 	/* The active package name (after using import command) */
-	pVM->pPackageName = ring_string_new_gc(pVM->pRingState,"");
+	pVM->pPackageName = ring_string_new_gc(pVM->pRingState,RING_CSTR_EMPTY);
 	/*
 	**  Trace Program (After Each Line) 
 	**  lTrace = Logical Value (Trace is Active or Not) 
@@ -166,7 +170,7 @@ VM * ring_vm_new ( RingState *pRingState )
 	**  nTraceEvent = The Trace Event (1 = New Line , etc) 
 	*/
 	pVM->lTrace = 0 ;
-	pVM->pTrace = ring_string_new_gc(pVM->pRingState,"");
+	pVM->pTrace = ring_string_new_gc(pVM->pRingState,RING_CSTR_EMPTY);
 	pVM->lTraceActive = 0 ;
 	pVM->nTraceEvent = 0 ;
 	pVM->pTraceData = ring_list_new_gc(pVM->pRingState,RING_ZERO) ;
@@ -182,8 +186,6 @@ VM * ring_vm_new ( RingState *pRingState )
 	pVM->nCurrentGlobalScope = 0 ;
 	/* File name in the class region */
 	pVM->cFileNameInClassRegion = NULL ;
-	/* Control Performance Instructions */
-	pVM->lUsePushPLocal = 1 ;
 	/* To know if we are inside eval() or not */
 	pVM->nInsideEval = 0 ;
 	/* Dynamic Libraries */
@@ -196,8 +198,6 @@ VM * ring_vm_new ( RingState *pRingState )
 	pVM->lExitFlag = 0 ;
 	/* A flag to enable/disable BraceError() Method usage for the current Error */
 	pVM->lCheckBraceError = 1 ;
-	/* A flag to disable (Move To Prev. Scope) by Return Command */
-	pVM->lDontMoveToPrevScope = 0 ;
 	/* A flag if we are using LoadA to get the Self variable */
 	pVM->lSelfLoadA = 0 ;
 	/* List of pointers that contains lists that will be deleted later */
@@ -210,6 +210,10 @@ VM * ring_vm_new ( RingState *pRingState )
 	pVM->lOptionalLoop = 0 ;
 	/* Use to register the PC when we stop the VM */
 	pVM->nPausePC = 1 ;
+	/* Tracked List of Variables - Each variable is a pointer to a List item */
+	pVM->pTrackedVariables = ring_list_new_gc(pVM->pRingState,RING_ZERO);
+	/* Create Arguments Cache */
+	ring_vm_newargcache(pVM);
 	return pVM ;
 }
 
@@ -218,7 +222,7 @@ VM * ring_vm_delete ( VM *pVM )
 	int x  ;
 	List *pRecord  ;
 	Item *pItem  ;
-	pVM->pMem = ring_list_delete_gc(pVM->pRingState,pVM->pMem);
+	CFunction *pCFunc  ;
 	pVM->pNestedLists = ring_list_delete_gc(pVM->pRingState,pVM->pNestedLists);
 	pVM->pFuncCallList = ring_list_delete_gc(pVM->pRingState,pVM->pFuncCallList);
 	pVM->pPCBlockFlag = ring_list_delete_gc(pVM->pRingState,pVM->pPCBlockFlag);
@@ -233,9 +237,18 @@ VM * ring_vm_delete ( VM *pVM )
 	pVM->pSetProperty = ring_list_delete_gc(pVM->pRingState,pVM->pSetProperty);
 	pVM->pForStep = ring_list_delete_gc(pVM->pRingState,pVM->pForStep);
 	pVM->pBeforeObjState = ring_list_delete_gc(pVM->pRingState,pVM->pBeforeObjState);
-	/* Free Stack */
+	/* Free (Stack, FuncCall & Scopes) */
 	for ( x = 0 ; x < RING_VM_STACK_SIZE ; x++ ) {
-		ring_item_deletecontent(&(pVM->aStack[x]));
+		ring_item_deletecontent_gc(pVM->pRingState,&(pVM->aStack[x]));
+		/* Delete Temp. memory lists in FuncCall */
+		if ( pVM->aFuncCall[x].pTempMem != NULL ) {
+			pVM->aFuncCall[x].pTempMem = ring_list_delete_gc(pVM->pRingState,pVM->aFuncCall[x].pTempMem);
+		}
+		/* Delete scope lists */
+		if ( (x < 1) || ( pVM->pRingState->lRunFromThread &&  (x < 2) ) ) {
+			continue ;
+		}
+		ring_list_deleteallitems_gc(pVM->pRingState,RING_VM_GETSCOPE(x));
 	}
 	/* Delete the bytecode */
 	for ( x = 1 ; x <= RING_VM_INSTRUCTIONSCOUNT ; x++ ) {
@@ -257,6 +270,15 @@ VM * ring_vm_delete ( VM *pVM )
 	pVM->pCLibraries = ring_list_delete_gc(pVM->pRingState,pVM->pCLibraries);
 	pVM->pDeleteLater = ring_list_delete_gc(pVM->pRingState,pVM->pDeleteLater);
 	pVM->pDefinedGlobals = ring_list_delete_gc(pVM->pRingState,pVM->pDefinedGlobals);
+	pVM->pTrackedVariables = ring_list_delete_gc(pVM->pRingState,pVM->pTrackedVariables);
+	/* Delete Arguments Cache */
+	ring_vm_deleteargcache(pVM);
+	/* Delete C Functions */
+	while ( pVM->pCFunction != NULL ) {
+		pCFunc = pVM->pCFunction ;
+		pVM->pCFunction = pVM->pCFunction->pNext ;
+		ring_state_free(pVM->pRingState,pCFunc);
+	}
 	pVM->pRingState->pVM = NULL ;
 	ring_state_free(pVM->pRingState,pVM);
 	pVM = NULL ;
@@ -273,10 +295,14 @@ void ring_vm_start ( RingState *pRingState,VM *pVM )
 		ring_vm_defragmentation(pRingState,pVM);
 	}
 	ring_vm_loadcode(pVM);
+	ring_vm_towardsmainloop(pRingState);
+}
+
+void ring_vm_towardsmainloop ( RingState *pRingState )
+{
+	VM *pVM  ;
+	pVM = pRingState->pVM ;
 	ring_vm_loadcfunctions(pRingState);
-	/* Generate Items Array &  Hash Table */
-	ring_list_genarray(pRingState->pRingCFunctions);
-	ring_list_genhashtable2(pRingState->pRingCFunctions);
 	if ( RING_VM_INSTRUCTIONSCOUNT > 0 ) {
 		pVM->nPC = 1 ;
 		ring_vm_mainloop(pVM);
@@ -312,7 +338,6 @@ void ring_vm_init ( RingState *pRingState )
 			ring_scanner_addreturn(pRingState);
 			pVM = ring_vm_new(pRingState);
 			ring_vm_start(pRingState,pVM);
-			pRingState->pVM = pVM ;
 		}
 	}
 	return ;
@@ -441,10 +466,10 @@ RING_API void ring_vm_loadcode ( VM *pVM )
 	**  eval() will check if there is a need to reallocation or not 
 	**  This optimization increase the performance of applications that uses eval() 
 	*/
-	#if RING_MSDOS
+	#if RING_LOWMEM
 		nSize = RING_VM_INSTRUCTIONSLISTSIZE ;
 	#else
-		nSize = (RING_MAX(RING_VM_INSTRUCTIONSLISTSIZE,RING_VM_MINVMINSTRUCTIONS))+RING_VM_EXTRASIZE ;
+		nSize = RING_VM_INSTRUCTIONSLISTSIZE+RING_VM_EXTRASIZE ;
 	#endif
 	pVM->pByteCode = (ByteCode *) ring_calloc(nSize,sizeof(ByteCode));
 	for ( x = 1 ; x <= RING_VM_INSTRUCTIONSLISTSIZE ; x++ ) {
@@ -485,13 +510,17 @@ void ring_vm_tobytecode ( VM *pVM,int nIns )
 			break ;
 	}
 	pByteCode->nOPCode = pItem->data.iNumber ;
-	/* Get Instruction Parameters Count */
-	pByteCode->nInsSize = ring_list_getsize(pIR) ;
-	/* Set the Registers Type */
-	pByteCode->nReg1Type = RING_VM_REGTYPE_NOTHING ;
-	pByteCode->nReg2Type = RING_VM_REGTYPE_NOTHING ;
-	pByteCode->nReg3Type = RING_VM_REGTYPE_NOTHING ;
-	pByteCode->nReg4Type = RING_VM_REGTYPE_NOTHING ;
+	/* Set the default values */
+	pByteCode->lFlagReg = 0 ;
+	pByteCode->lFlagReg2 = 0 ;
+	pByteCode->lLiteral = 0 ;
+	pByteCode->lUnused = 0 ;
+	pByteCode->nReg1Type = RING_VM_REGTYPE_DEFAULT ;
+	pByteCode->nReg2Type = RING_VM_REGTYPE_DEFAULT ;
+	pByteCode->nSmallIntReg = 0 ;
+	pByteCode->nIntReg = 0 ;
+	pByteCode->aReg[RING_VM_IR_REG1].dNumber = 0.0 ;
+	pByteCode->aReg[RING_VM_IR_REG2].dNumber = 0.0 ;
 	for ( x = 2 ; x <= ring_list_getsize(pIR) ; x++ ) {
 		pItem = ring_list_getitem(pIR,x) ;
 		/* Copy the item data */
@@ -508,7 +537,7 @@ void ring_vm_tobytecode ( VM *pVM,int nIns )
 				break ;
 			case ITEMTYPE_STRING :
 				pString = ring_item_getstring(pItem) ;
-				pByteCode->aReg[x-2].pString = ring_string_new2_gc(NULL,ring_string_get(pString),ring_string_size(pString)) ;
+				pByteCode->aReg[x-2].pString = ring_string_strdup(pVM->pRingState,ring_string_get(pString)) ;
 				nType = RING_VM_REGTYPE_STRING ;
 				break ;
 			case ITEMTYPE_POINTER :
@@ -524,9 +553,6 @@ void ring_vm_tobytecode ( VM *pVM,int nIns )
 			case 1 :
 				pByteCode->nReg2Type = nType ;
 				break ;
-			case 2 :
-				pByteCode->nReg3Type = nType ;
-				break ;
 		}
 	}
 }
@@ -538,28 +564,24 @@ void ring_vm_deletebytecode ( VM *pVM,int nIns )
 	pVM->pByteCodeIR = pVM->pByteCode + nIns - 1 ;
 	ring_vm_clearregisterstring(pVM,RING_VM_IR_REG1);
 	ring_vm_clearregisterstring(pVM,RING_VM_IR_REG2);
-	ring_vm_clearregisterstring(pVM,RING_VM_IR_REG3);
 }
 
 void ring_vm_clearregisterstring ( VM *pVM,int nReg )
 {
+	if ( pVM->pByteCodeIR->lLiteral ) {
+		return ;
+	}
 	switch ( nReg ) {
 		case RING_VM_IR_REG1 :
 			if ( pVM->pByteCodeIR->nReg1Type == RING_VM_REGTYPE_STRING ) {
-				ring_string_delete_gc(pVM->pRingState,pVM->pByteCodeIR->aReg[RING_VM_IR_REG1].pString);
-				pVM->pByteCodeIR->nReg1Type = RING_VM_REGTYPE_NOTHING ;
+				ring_state_free(pVM->pRingState,(void *) pVM->pByteCodeIR->aReg[RING_VM_IR_REG1].pString);
+				pVM->pByteCodeIR->nReg1Type = RING_VM_REGTYPE_DEFAULT ;
 			}
 			break ;
 		case RING_VM_IR_REG2 :
 			if ( pVM->pByteCodeIR->nReg2Type == RING_VM_REGTYPE_STRING ) {
-				ring_string_delete_gc(pVM->pRingState,pVM->pByteCodeIR->aReg[RING_VM_IR_REG2].pString);
-				pVM->pByteCodeIR->nReg2Type = RING_VM_REGTYPE_NOTHING ;
-			}
-			break ;
-		case RING_VM_IR_REG3 :
-			if ( pVM->pByteCodeIR->nReg3Type == RING_VM_REGTYPE_STRING ) {
-				ring_string_delete_gc(pVM->pRingState,pVM->pByteCodeIR->aReg[RING_VM_IR_REG3].pString);
-				pVM->pByteCodeIR->nReg3Type = RING_VM_REGTYPE_NOTHING ;
+				ring_state_free(pVM->pRingState,(void *) pVM->pByteCodeIR->aReg[RING_VM_IR_REG2].pString);
+				pVM->pByteCodeIR->nReg2Type = RING_VM_REGTYPE_DEFAULT ;
 			}
 			break ;
 	}
@@ -572,9 +594,9 @@ void ring_vm_setreg1topointerfromstack ( VM * pVM )
 	RING_VM_IR_SETREG1TYPE(RING_VM_REGTYPE_POINTER) ;
 }
 
-void ring_vm_showbytecode ( VM *pVM )
+RING_API void ring_vm_showbytecode ( VM *pVM )
 {
-	int x,y,nCount,nCount2,nType  ;
+	int x,y,nCount,nType  ;
 	ByteCode *pByteCode  ;
 	/* Print Header */
 	printf( "\n\n" ) ;
@@ -588,47 +610,79 @@ void ring_vm_showbytecode ( VM *pVM )
 		for ( x = 1 ; x <= nCount ; x++ ) {
 			/* Get the Instruction */
 			pByteCode = pVM->pByteCode + x - 1 ;
-			nCount2 = pByteCode->nInsSize - 1 ;
 			printf( "\n %6d  %18s  ", x , RING_IC_OP[pByteCode->nOPCode] ) ;
-			if ( nCount2 > 0 ) {
-				for ( y = 0 ; y < nCount2 ; y++ ) {
-					/* Get The Register Type */
-					if ( y == 0 ) {
-						nType = pByteCode->nReg1Type ;
-					}
-					else if ( y == 1 ) {
-						nType = pByteCode->nReg2Type ;
-					}
-					else if ( y == 2 ) {
-						nType = pByteCode->nReg3Type ;
-					}
-					else {
-						nType = pByteCode->nReg4Type ;
-					}
-					/* Display the Register Value */
-					switch ( nType ) {
-						case RING_VM_REGTYPE_STRING :
-							printf( " %18s ",ring_string_get(pByteCode->aReg[y].pString) ) ;
-							break ;
-						case RING_VM_REGTYPE_INT :
-							printf( " %18d ",pByteCode->aReg[y].iNumber ) ;
-							break ;
-						case RING_VM_REGTYPE_DOUBLE :
-							printf( " %18f",pByteCode->aReg[y].dNumber ) ;
-							break ;
-						case RING_VM_REGTYPE_POINTER :
-							printf( " %18p ",pByteCode->aReg[y].pPointer ) ;
-							break ;
-					}
+			for ( y = 0 ; y < RING_VM_BC_ITEMS_COUNT ; y++ ) {
+				/* Get The Register Type */
+				if ( y == 0 ) {
+					nType = pByteCode->nReg1Type ;
+				}
+				else if ( y == 1 ) {
+					nType = pByteCode->nReg2Type ;
+				}
+				/* Display the Register Value */
+				switch ( nType ) {
+					case RING_VM_REGTYPE_STRING :
+						printf( " %18s",pByteCode->aReg[y].pString ) ;
+						break ;
+					case RING_VM_REGTYPE_INT :
+						printf( " %18d",pByteCode->aReg[y].iNumber ) ;
+						break ;
+					case RING_VM_REGTYPE_DOUBLE :
+						printf( " %18f",pByteCode->aReg[y].dNumber ) ;
+						break ;
+					case RING_VM_REGTYPE_POINTER :
+						printf( " %18p",pByteCode->aReg[y].pPointer ) ;
+						break ;
 				}
 			}
 		}
 		printf( "\n" ) ;
 	}
 	/* Print Footer */
-	puts("");
+	puts(RING_CSTR_EMPTY);
 	ring_general_printline();
-	puts("");
+	puts(RING_CSTR_EMPTY);
+}
+
+void ring_vm_bytecode2list ( VM *pVM, List *pOutput )
+{
+	int x,y,nCount,nType  ;
+	ByteCode *pByteCode  ;
+	List *pIns  ;
+	nCount = RING_VM_INSTRUCTIONSCOUNT ;
+	if ( nCount > 0 ) {
+		for ( x = 1 ; x <= nCount ; x++ ) {
+			/* Create the instruction list */
+			pIns = ring_list_newlist_gc(pVM->pRingState,pOutput);
+			/* Get the Instruction */
+			pByteCode = pVM->pByteCode + x - 1 ;
+			ring_list_adddouble_gc(pVM->pRingState,pIns,pByteCode->nOPCode);
+			for ( y = 0 ; y < RING_VM_BC_ITEMS_COUNT ; y++ ) {
+				/* Get The Register Type */
+				if ( y == 0 ) {
+					nType = pByteCode->nReg1Type ;
+				}
+				else if ( y == 1 ) {
+					nType = pByteCode->nReg2Type ;
+				}
+				/* Add the Register Value */
+				switch ( nType ) {
+					case RING_VM_REGTYPE_STRING :
+						ring_list_addstring_gc(pVM->pRingState,pIns,pByteCode->aReg[y].pString);
+						break ;
+					case RING_VM_REGTYPE_INT :
+						ring_list_adddouble_gc(pVM->pRingState,pIns,pByteCode->aReg[y].iNumber);
+						break ;
+					case RING_VM_REGTYPE_DOUBLE :
+						ring_list_adddouble_gc(pVM->pRingState,pIns,pByteCode->aReg[y].dNumber);
+						break ;
+					case RING_VM_REGTYPE_POINTER :
+						ring_list_addpointer_gc(pVM->pRingState,pIns,pByteCode->aReg[y].pPointer);
+						break ;
+				}
+			}
+		}
+	}
 }
 
 void ring_vm_mainloop ( VM *pVM )
@@ -668,7 +722,7 @@ void ring_vm_fetch2 ( VM *pVM )
 		printf( "\nVM IR Pointer : %p  " , (void *) pVM->pByteCodeIR ) ;
 		printf( "\nOperation     : %s  " , RING_IC_OP[pVM->nOPCode] ) ;
 		printf( "\nPC            : %d  " ,pVM->nPC ) ;
-		printf( "\nScopes Count  : %d  " ,ring_list_getsize(pVM->pMem) ) ;
+		printf( "\nScopes Count  : %d  " ,RING_VM_SCOPESCOUNT ) ;
 		printf( "\nScope Pointer : %p  " ,pVM->pActiveMem ) ;
 		printf( "\nFile Name     : %s \nLine Number   : %d\n" ,pVM->cFileName,RING_VM_IR_GETLINENUMBER ) ;
 		if ( (pVM->nOPCode == ICO_PUSHC) || (pVM->nOPCode == ICO_LOADADDRESS) || (pVM->nOPCode == ICO_LOADFUNC) ) {
@@ -692,14 +746,15 @@ void ring_vm_execute ( VM *pVM )
 		case ICO_PUSHC :
 			RING_VM_STACK_PUSHC ;
 			break ;
-		case ICO_PUSH4N :
-			RING_VM_STACK_PUSHNVALUE(RING_VM_IR_READDVALUE(RING_VM_IR_PARACOUNT-5)) ;
-		case ICO_PUSH3N :
-			RING_VM_STACK_PUSHNVALUE(RING_VM_IR_READDVALUE(RING_VM_IR_PARACOUNT-4)) ;
+		case ICO_PUSHNL :
+			RING_VM_STACK_PUSHNL ;
+			break ;
 		case ICO_PUSH2N :
-			RING_VM_STACK_PUSHNVALUE(RING_VM_IR_READDVALUE(RING_VM_IR_PARACOUNT-3)) ;
+			RING_VM_STACK_PUSHNVALUE(RING_VM_IR_READDVALUE(RING_VM_IR_REG1)) ;
+			RING_VM_STACK_PUSHNVALUE(RING_VM_IR_READDVALUE(RING_VM_IR_REG2)) ;
+			break ;
 		case ICO_PUSHN :
-			RING_VM_STACK_PUSHNVALUE(RING_VM_IR_READDVALUE(RING_VM_IR_PARACOUNT-2)) ;
+			RING_VM_STACK_PUSHNVALUE(RING_VM_IR_READDVALUE(RING_VM_IR_REG1)) ;
 			break ;
 		case ICO_PUSHV :
 			ring_vm_pushv(pVM);
@@ -750,6 +805,9 @@ void ring_vm_execute ( VM *pVM )
 		case ICO_PUSHNULLTHENJUMP :
 			RING_VM_PUSHNULLTHENJUMP ;
 			break ;
+		case ICO_PUSHNTHENJUMP :
+			RING_VM_PUSHNTHENJUMP ;
+			break ;
 		/* Compare */
 		case ICO_LESSEQUAL :
 			ring_vm_lessequal(pVM);
@@ -797,6 +855,24 @@ void ring_vm_execute ( VM *pVM )
 		case ICO_POW :
 			ring_vm_pow(pVM);
 			break ;
+		case ICO_SUMN :
+			ring_vm_sumn(pVM);
+			break ;
+		case ICO_SUBN :
+			ring_vm_subn(pVM);
+			break ;
+		case ICO_MULN :
+			ring_vm_muln(pVM);
+			break ;
+		case ICO_DIVN :
+			ring_vm_divn(pVM);
+			break ;
+		case ICO_MODN :
+			ring_vm_modn(pVM);
+			break ;
+		case ICO_POWN :
+			ring_vm_pown(pVM);
+			break ;
 		/* Logic */
 		case ICO_AND :
 			ring_vm_and(pVM);
@@ -814,6 +890,12 @@ void ring_vm_execute ( VM *pVM )
 		case ICO_LISTITEM :
 			ring_vm_listitem(pVM);
 			break ;
+		case ICO_LISTITEMN :
+			ring_vm_listitemn(pVM);
+			break ;
+		case ICO_LISTITEMC :
+			ring_vm_listitemc(pVM);
+			break ;
 		case ICO_LISTEND :
 			ring_vm_listend(pVM);
 			break ;
@@ -830,6 +912,9 @@ void ring_vm_execute ( VM *pVM )
 		case ICO_RETURN :
 			ring_vm_return(pVM);
 			break ;
+		case ICO_RETURNN :
+			ring_vm_returnn(pVM);
+			break ;
 		case ICO_RETNULL :
 			ring_vm_returnnull(pVM);
 			break ;
@@ -845,21 +930,8 @@ void ring_vm_execute ( VM *pVM )
 		case ICO_BLOCKFLAG :
 			ring_vm_blockflag(pVM);
 			break ;
-		case ICO_FUNCEXE :
-			pVM->nFuncExecute++ ;
-			break ;
-		case ICO_ENDFUNCEXE :
-			ring_vm_endfuncexec(pVM);
-			break ;
 		case ICO_ANONYMOUS :
 			ring_vm_anonymous(pVM);
-			break ;
-		/* User Interface */
-		case ICO_PRINT :
-			ring_vm_see(pVM);
-			break ;
-		case ICO_GIVE :
-			ring_vm_give(pVM);
 			break ;
 		/* End Program - Exit from Loop - Loop (Continue) */
 		case ICO_BYE :
@@ -899,6 +971,9 @@ void ring_vm_execute ( VM *pVM )
 		case ICO_PUSHPLOCAL :
 			ring_vm_pushplocal(pVM);
 			break ;
+		case ICO_PUSHARG :
+			ring_vm_pusharg(pVM);
+			break ;
 		case ICO_INCLPJUMP :
 			ring_vm_inclpjump(pVM);
 			break ;
@@ -917,7 +992,7 @@ void ring_vm_execute ( VM *pVM )
 			break ;
 		/* Duplicate and Range */
 		case ICO_DUPLICATE :
-			ring_vm_dup(pVM);
+			ring_vm_stack_dup(pVM);
 			break ;
 		case ICO_RANGE :
 			ring_vm_range(pVM);
@@ -997,6 +1072,9 @@ void ring_vm_execute ( VM *pVM )
 		/* For Step */
 		case ICO_STEPNUMBER :
 			ring_vm_stepnumber(pVM);
+			break ;
+		case ICO_STEPFROMREG :
+			ring_vm_stepfromreg(pVM);
 			break ;
 		case ICO_POPSTEP :
 			ring_vm_popstep(pVM);
