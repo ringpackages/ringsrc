@@ -120,6 +120,7 @@
 		void (*pFuncMutexLock)(void *) ;
 		void (*pFuncMutexUnlock)(void *) ;
 		void *pMutex  ;
+		CFunction *pCFunction  ;
 		unsigned int nCurrentGlobalScope  ;
 		unsigned int nOPCode  ;
 		unsigned int nSP  ;
@@ -180,7 +181,6 @@
 		FuncCall aFuncCall[RING_VM_STACK_SIZE]  ;
 		List aScopes[RING_VM_STACK_SIZE]  ;
 		List *pArgCache[RING_VM_ARGCACHE_SIZE]  ;
-		CFunction *pCFunction  ;
 	} VM ;
 	/*
 	**  Macro & Constants 
@@ -781,6 +781,8 @@
 	void ring_vm_cleansetpropertylist ( VM *pVM ) ;
 
 	int ring_vm_isoperationaftersublist ( VM *pVM ) ;
+
+	int ring_vm_notusingvarduringdef ( VM *pVM ) ;
 	/* Functions */
 
 	int ring_vm_loadfunc ( VM *pVM ) ;

@@ -5,11 +5,11 @@ aPackageInfo = [
 	:developer = "Mahmoud Fayed",
 	:email = "msfclipper@yahoo.com",
 	:license = "MIT License",
-	:version = "1.21.0",
+	:version = "1.21.1",
 	:ringversion = "1.21",
 	:versions = 	[
 		[
-			:version = "1.21.0",
+			:version = "1.21.1",
 			:branch = "master"
 		]
 	],
@@ -83,7 +83,6 @@ aPackageInfo = [
 		"language/src/stmt.c",
 		"language/src/test.c",
 		"language/src/vm.c",
-		"language/src/vmcui.c",
 		"language/src/vmerror.c",
 		"language/src/vmeval.c",
 		"language/src/vmexit.c",
