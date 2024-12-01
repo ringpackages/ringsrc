@@ -7,7 +7,7 @@ int ring_parser_class ( Parser *pParser )
 	List *pList,*pList2,*pList3,*pMark,*pNewClass  ;
 	int x  ;
 	String *pString  ;
-	/* Statement --> Class Identifier  [ From Identifier ] */
+	/* Statement --> Class Identifier  [ From|:|< Identifier ] */
 	if ( ring_parser_iskeyword(pParser,K_CLASS) ) {
 		ring_parser_nexttoken(pParser);
 		RING_PARSER_IGNORENEWLINE ;
@@ -118,7 +118,7 @@ int ring_parser_class ( Parser *pParser )
 			return RING_PARSER_FAIL ;
 		}
 	}
-	/* Statement --> Func|Def Identifier [PARALIST] */
+	/* Statement --> Function|Func|Def Identifier [PARALIST] */
 	if ( ring_parser_iskeyword(pParser,K_FUNC) || ring_parser_iskeyword(pParser,K_FUNCTION) || ring_parser_iskeyword(pParser,K_DEF) ) {
 		ring_parser_nexttoken(pParser);
 		RING_PARSER_IGNORENEWLINE ;
@@ -1204,20 +1204,20 @@ int ring_parser_list ( Parser *pParser )
 		ring_parser_icg_newoperation(pParser,ICO_LISTSTART);
 		ring_parser_nexttoken(pParser);
 		RING_PARSER_IGNORENEWLINE ;
-		if ( ring_parser_isoperator2(pParser,OP_LCLOSE) ) {
-			ring_parser_nexttoken(pParser);
-			/* Generate Code */
-			ring_parser_icg_newoperation(pParser,ICO_LISTEND);
-			RING_STATE_PRINTRULE(RING_RULE_LIST) ;
-			return RING_PARSER_OK ;
-		}
-		while ( 1 ) {
-			pParser->lAssignmentFlag = 0 ;
+		while ( RING_TRUE ) {
+			if ( ring_parser_isoperator2(pParser,OP_LCLOSE) ) {
+				ring_parser_nexttoken(pParser);
+				/* Generate Code */
+				ring_parser_icg_newoperation(pParser,ICO_LISTEND);
+				RING_STATE_PRINTRULE(RING_RULE_LIST) ;
+				return RING_PARSER_OK ;
+			}
+			pParser->lAssignmentFlag = RING_FALSE ;
 			if ( ring_parser_expr(pParser) ) {
 				/* Generate Code */
 				ring_parser_icg_listitem(pParser);
-				pParser->lNewObject = 0 ;
-				pParser->lAssignmentFlag = 1 ;
+				pParser->lNewObject = RING_FALSE ;
+				pParser->lAssignmentFlag = RING_TRUE ;
 				RING_PARSER_IGNORENEWLINE ;
 				if ( ring_parser_isoperator2(pParser,OP_COMMA) ) {
 					ring_parser_nexttoken(pParser);
