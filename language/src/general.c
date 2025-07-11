@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -40,6 +40,14 @@ int ring_general_exefilename ( char *cDirPath )
 		if ( cCorrectPath != NULL ) {
 			strncpy(cDirPath,cCorrectPath,nSize) ;
 			free(cCorrectPath) ;
+		}
+	#elif __FreeBSD__
+		/* FreeBSD */
+		int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 } ;
+		size_t cb = nSize ;
+		memset(cDirPath, RING_ZERO, nSize);
+		if ( sysctl(mib, 4, cDirPath, &cb, NULL, 0) != 0 ) {
+			return 0 ;
 		}
 	#elif __linux__
 		/* readlink() doesn't null terminate */
@@ -175,7 +183,7 @@ void ring_general_showtime ( void )
 	ring_general_printline();
 	puts(cBuffer);
 	vClock = clock();
-	printf( "Clock : %ld \n", vClock ) ;
+	printf( "Clock : %ld \n", (long) vClock ) ;
 	ring_general_printline();
 }
 
@@ -188,21 +196,21 @@ RING_FILE ring_custom_fopen ( const char *cFileName, const char *cMode )
 		wchar_t cPath[MAX_PATH]  ;
 		wchar_t cWMode[MAX_PATH]  ;
 		/* Set Variables */
-		nLen1 = 0 ;
-		nLen2 = 0 ;
+		nLen1 = RING_ZERO ;
+		nLen2 = RING_ZERO ;
 		nFileNameSize = strlen(cFileName) ;
 		nModeSize = strlen(cMode) ;
-		if ( (nFileNameSize == 0) || (nModeSize==0) ) {
+		if ( (nFileNameSize == RING_ZERO) || (nModeSize == RING_ZERO) ) {
 			return NULL ;
 		}
-		nLen1 = MultiByteToWideChar(CP_UTF8, 0, cFileName, nFileNameSize, cPath, nFileNameSize) ;
-		if ( nLen1 >= MAX_PATH ) {
-			return NULL ;
+		nLen1 = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, cFileName, nFileNameSize, cPath, MAX_PATH) ;
+		if ( (nLen1 == RING_ZERO) || (nLen1 >= MAX_PATH) ) {
+			return RING_OPENFILE(cFileName, cMode) ;
 		}
 		cPath[nLen1] = L'\0' ;
-		nLen2 = MultiByteToWideChar(CP_UTF8, 0, cMode, nModeSize, cWMode, nModeSize) ;
-		if ( nLen2 >= MAX_PATH ) {
-			return NULL ;
+		nLen2 = MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS, cMode, nModeSize, cWMode, MAX_PATH) ;
+		if ( (nLen2 == RING_ZERO) || (nLen2 >= MAX_PATH) ) {
+			return RING_OPENFILE(cFileName, cMode) ;
 		}
 		cWMode[nLen2] = L'\0' ;
 		pFile = _wfopen(cPath, cWMode);

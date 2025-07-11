@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_h
 	#define ring_h
@@ -31,6 +31,9 @@
 	#endif
 	#ifdef __ANDROID__
 		#define RING_SIMPLEHASHFUNC 1
+	#endif
+	#ifdef __FreeBSD__
+		#include <sys/sysctl.h>
 	#endif
 	#ifdef _WIN32
 		#include <io.h>
@@ -168,8 +171,11 @@
 	#define RING_ZERO 0
 	#define RING_ONE 1
 	#define RING_TWO 2
+	#define RING_THREE 3
+	#define RING_FOUR 4
 	#define RING_ZEROF 0.0
 	#define RING_ONEF 1.0
+	#define RING_MINUSONE -1
 	/* Decimals */
 	#define RING_DECIMALS 2
 	/* C Strings */
@@ -206,6 +212,7 @@
 	#define RING_CSTR_TABVAR "tab"
 	#define RING_CSTR_CRVAR "cr"
 	#define RING_CSTR_THISVAR RING_CSTR_THIS
+	#define RING_CSTR_RINGOPTIONALFUNCTIONS "ringoptionalfunctions"
 	/* Exit */
 	#define RING_EXIT_OK 0
 	#define RING_EXIT_FAIL 1

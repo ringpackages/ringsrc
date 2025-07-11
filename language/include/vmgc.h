@@ -1,7 +1,10 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_gc_h
 	#define ring_gc_h
+	/* Constants */
+	#define RING_LISTREF_INC 1
+	#define RING_LISTREF_DEC -1
 	/*
 	**  Functions 
 	**  Item GC Functions 

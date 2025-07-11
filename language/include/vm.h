@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_vm_h
 	#define ring_vm_h
@@ -250,6 +250,7 @@
 	#define RING_GLOBALVARPOS_ERRORMSG 6
 	#define RING_GLOBALVARPOS_SETTEMPVAR 7
 	#define RING_GLOBALVARPOS_THIS 11
+	#define RING_GLOBALVARPOS_OPTIONALFUNCTIONS 15
 	/* Variable Type */
 	#define RING_VM_NULL 0
 	#define RING_VM_STRING 1
@@ -454,7 +455,6 @@
 	#define RING_TEMPLIST_LIST 2
 	/* Threads */
 	#define RING_VM_ITEMSFORNEWTHREAD 100000
-	#define RING_VM_SCOPERANGEFORNEWTHREAD 10000
 	/* pPCBlockFlag */
 	#define RING_PCBLOCKFLAG_PC 1
 	#define RING_PCBLOCKFLAG_EXITMARK 2
@@ -598,6 +598,8 @@
 	void ring_vm_bytecode2list ( VM *pVM, List *pOutput ) ;
 
 	void ring_vm_useextrabytecode ( VM *pVM ) ;
+
+	void ring_vm_afterscopeidoverflow ( VM *pVM ) ;
 	/* Stack and Variables */
 
 	void ring_vm_pushv ( VM *pVM ) ;
@@ -833,6 +835,10 @@
 	int ring_vm_funccall_beforecall ( VM *pVM ) ;
 
 	int ring_vm_funccall_paracount ( VM *pVM ) ;
+
+	void ring_vm_newscopeid ( VM *pVM ) ;
+
+	void ring_vm_optionalfunc ( void *pPointer ) ;
 	/* String As Array */
 
 	void ring_vm_string_pushv ( VM *pVM ) ;

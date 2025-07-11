@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -782,6 +782,41 @@ RING_API int ring_list_findpointer ( List *pList,void *pPointer )
 	}
 	return 0 ;
 }
+
+RING_API int ring_list_findlistref ( List *pList,List *pValue,unsigned int nColumn )
+{
+	unsigned int x,nCount  ;
+	List *pList2, *pList3  ;
+	nCount = ring_list_getsize(pList);
+	/* Find Item */
+	if ( nCount > 0 ) {
+		if ( nColumn == 0 ) {
+			for ( x = 1 ; x <= nCount ; x++ ) {
+				if ( ring_list_islist(pList,x) ) {
+					pList2 = ring_list_getlist(pList,x);
+					if ( pList2 == pValue ) {
+						return x ;
+					}
+				}
+			}
+		}
+		else {
+			for ( x = 1 ; x <= nCount ; x++ ) {
+				if ( ring_list_islist(pList,x) == 0 ) {
+					continue ;
+				}
+				pList2 = ring_list_getlist(pList,x);
+				if ( ring_list_islist(pList2,nColumn) ) {
+					pList3 = ring_list_getlist(pList2,nColumn);
+					if ( pList3 == pValue ) {
+						return x ;
+					}
+				}
+			}
+		}
+	}
+	return 0 ;
+}
 /* Sort (QuickSort) and Binary Search */
 
 RING_API void ring_list_sortnum ( List *pList,int left,int right,unsigned int nColumn,const char *cAttribute )
@@ -1216,7 +1251,7 @@ RING_API void ring_list_print2 ( List *pList,unsigned int nDecimals )
 	}
 }
 
-RING_API int ring_list_findinlistofobjs ( List *pList,int nType,double nNum1,const char *cStr,unsigned int nColumn,char *cAttribute )
+RING_API int ring_list_findinlistofobjs ( List *pList,int nType,double nNum1,const char *cStr,List *pValue,unsigned int nColumn,char *cAttribute )
 {
 	unsigned int x,nCount,nPos  ;
 	List *pList2  ;
@@ -1247,13 +1282,33 @@ RING_API int ring_list_findinlistofobjs ( List *pList,int nType,double nNum1,con
 			pList2 = ring_list_getlist(pList2,RING_OBJECT_OBJECTDATA) ;
 			pList2 = ring_list_getlist(pList2,nPos) ;
 			if ( nType  == RING_LISTOFOBJS_FINDSTRING ) {
-				if ( strcmp(cStr,ring_list_getstring(pList2,RING_VAR_VALUE)) == 0 ) {
-					return x ;
+				if ( ring_list_isstring(pList2,RING_VAR_VALUE) ) {
+					if ( strcmp(cStr,ring_list_getstring(pList2,RING_VAR_VALUE)) == 0 ) {
+						return x ;
+					}
 				}
 			}
-			else {
-				if ( ring_list_getdouble(pList2,RING_VAR_VALUE) == nNum1 ) {
-					return x ;
+			else if ( nType  == RING_LISTOFOBJS_FINDNUMBER ) {
+				if ( ring_list_isdouble(pList2,RING_VAR_VALUE) ) {
+					if ( ring_list_getdouble(pList2,RING_VAR_VALUE) == nNum1 ) {
+						return x ;
+					}
+				}
+			}
+			else if ( nType  == RING_LISTOFOBJS_FINDCPOINTER ) {
+				if ( ring_list_islist(pList2,RING_VAR_VALUE) ) {
+					if ( ring_list_iscpointerlist(ring_list_getlist(pList2,RING_VAR_VALUE)) ) {
+						if ( ring_list_cpointercmp(ring_list_getlist(pList2,RING_VAR_VALUE),pValue) ) {
+							return x ;
+						}
+					}
+				}
+			}
+			else if ( nType  == RING_LISTOFOBJS_FINDLISTREF ) {
+				if ( ring_list_islist(pList2,RING_VAR_VALUE) ) {
+					if ( ring_list_getlist(pList2,RING_VAR_VALUE) == pValue ) {
+						return x ;
+					}
 				}
 			}
 		}

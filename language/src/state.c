@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -41,7 +41,7 @@ RING_API RingState * ring_state_new ( void )
 	ring_list_addint(pRingState->pCustomGlobalScopeStack,pRingState->nCustomGlobalScopeCounter);
 	/* Log File */
 	#if RING_LOGFILE
-		pRingState->pLogFile = fopen(RING_FILES_LOGFILE , "w+" );
+		pRingState->pLogFile = ring_custom_fopen(RING_FILES_LOGFILE , "w+");
 	#endif
 	/* Tokens Only */
 	pRingState->lOnlyTokens = 0 ;
@@ -593,7 +593,7 @@ void ring_state_segfaultaction ( int nSig )
 void ring_state_usageinfo ( void )
 {
 	ring_general_printline();
-	printf( "Ring version %s \n2013-2024, Mahmoud Fayed <msfclipper@yahoo.com>\n",RING_STATE_VERSIONANDPATCH ) ;
+	printf( "Ring version %s \n2013-2025, Mahmoud Fayed <msfclipper@yahoo.com>\n",RING_STATE_VERSIONANDPATCH ) ;
 	puts("Usage : ring filename.ring [Options]");
 	ring_general_printline();
 	/* Options */

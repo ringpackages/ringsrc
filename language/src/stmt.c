@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -26,7 +26,7 @@ int ring_parser_class ( Parser *pParser )
 			if ( ring_list_getsize(pParser->pClassesMap) ) {
 				/* Generate the HashTable */
 				if ( ring_list_gethashtable(pParser->pClassesMap) == NULL ) {
-					ring_list_genhashtable2(pParser->pClassesMap);
+					ring_list_genhashtable2_gc(pParser->pRingState,pParser->pClassesMap);
 				}
 				if ( ring_hashtable_findpointer(ring_list_gethashtable(pParser->pClassesMap),pParser->cTokenText) != NULL ) {
 					ring_parser_error(pParser,RING_PARSER_ERROR_CLASSREDEFINE);
@@ -40,7 +40,7 @@ int ring_parser_class ( Parser *pParser )
 			ring_parser_icg_newoperandpointer(pParser,pList);
 			/* Add the class to the HashTable */
 			if ( ring_list_gethashtable(pParser->pClassesMap) != NULL ) {
-				ring_hashtable_newpointer_gc(NULL,ring_list_gethashtable(pParser->pClassesMap),pParser->cTokenText,pList);
+				ring_hashtable_newpointer_gc(pParser->pRingState,ring_list_gethashtable(pParser->pClassesMap),pParser->cTokenText,pList);
 			}
 			ring_parser_nexttoken(pParser);
 			/* [From Identifier] */
@@ -136,7 +136,7 @@ int ring_parser_class ( Parser *pParser )
 			if ( ring_list_getsize(pParser->pFunctionsMap) ) {
 				/* Generate the HashTable */
 				if ( ring_list_gethashtable(pParser->pFunctionsMap) == NULL ) {
-					ring_list_genhashtable2(pParser->pFunctionsMap);
+					ring_list_genhashtable2_gc(pParser->pRingState,pParser->pFunctionsMap);
 				}
 				if ( ring_hashtable_findpointer(ring_list_gethashtable(pParser->pFunctionsMap),pParser->cTokenText) != NULL ) {
 					ring_parser_error(pParser,RING_PARSER_ERROR_FUNCREDEFINE);
@@ -155,7 +155,7 @@ int ring_parser_class ( Parser *pParser )
 			}
 			/* Add the function to the HashTable */
 			if ( ring_list_gethashtable(pParser->pFunctionsMap) != NULL ) {
-				ring_hashtable_newpointer_gc(NULL,ring_list_gethashtable(pParser->pFunctionsMap),pParser->cTokenText,pList2);
+				ring_hashtable_newpointer_gc(pParser->pRingState,ring_list_gethashtable(pParser->pFunctionsMap),pParser->cTokenText,pList2);
 			}
 			ring_parser_nexttoken(pParser);
 			if ( ring_parser_isidentifier(pParser) || ring_parser_isoperator2(pParser,OP_FOPEN) ) {
@@ -233,7 +233,9 @@ int ring_parser_class ( Parser *pParser )
 
 int ring_parser_stmt ( Parser *pParser )
 {
-	int x,nMark1,nMark2,nMark3,nStart,nEnd,nDiff,lFastLen,nFlag,nLoadPackage,lLoopOrExitCommand,nLoadAgain,nForInVarsCount,nVar,nLine,nLine2  ;
+	int x,nMark1,nMark2,nMark3,nStart,nEnd,nDiff,lFastLen,nFlag  ;
+	int nLoadPackage,lLoopOrExitCommand,nLoadAgain,nForInVarsCount  ;
+	int nVar,nLine,nLine2,lRetItemRef,nFactorFlag  ;
 	String *pString  ;
 	List *pMark,*pMark2,*pMark3,*pMark4,*pList2  ;
 	double nNum1  ;
@@ -872,9 +874,26 @@ int ring_parser_stmt ( Parser *pParser )
 		if ( ring_parser_isendline(pParser) == 0 ) {
 			/* Generate Code */
 			ring_parser_icg_newoperation(pParser,ICO_FREELOADASCOPE);
+			/* Check using & to return item reference */
+			lRetItemRef = RING_FALSE ;
+			if ( ring_parser_isoperator2(pParser,OP_BITAND) ) {
+				ring_parser_nexttoken(pParser);
+				lRetItemRef = RING_TRUE ;
+			}
 			pParser->lAssignmentFlag = 0 ;
 			x = ring_parser_expr(pParser);
 			pParser->lAssignmentFlag = 1 ;
+			if ( lRetItemRef ) {
+				if ( ring_parser_icg_getlastoperation(pParser) == ICO_NEWLINE ) {
+					ring_parser_icg_deletelastoperation(pParser);
+				}
+				if ( ring_parser_icg_getlastoperation(pParser) == ICO_PUSHV ) {
+					ring_parser_icg_deletelastoperation(pParser);
+					/* Generate Code */
+					ring_parser_icg_newoperation(pParser,ICO_RETITEMREF);
+					ring_parser_icg_newoperation(pParser,ICO_PUSHV);
+				}
+			}
 			/* Generate Code */
 			if ( x == RING_PARSER_OK ) {
 				ring_parser_icg_returnn(pParser);

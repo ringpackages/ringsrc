@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -6,7 +6,7 @@ void ring_vm_string_pushv ( VM *pVM )
 {
 	char *cNewStr  ;
 	char cStr[RING_CHARBUF]  ;
-	if ( (pVM->nRetItemRef>=1)  && (ring_vm_isstackpointertoobjstate(pVM)==1) ) {
+	if ( pVM->nRetItemRef ) {
 		pVM->nRetItemRef-- ;
 		return ;
 	}

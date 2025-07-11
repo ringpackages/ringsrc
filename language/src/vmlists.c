@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -328,40 +328,23 @@ void ring_vm_listpushv ( VM *pVM )
 	Item *pItem  ;
 	char cPointer[RING_SMALLBUF]  ;
 	pItem = (Item *) RING_VM_STACK_READP ;
+	/* Check if we need to access an object */
+	if ( ring_item_gettype(pItem) == ITEMTYPE_LIST ) {
+		ring_vm_oop_setbraceobj(pVM, (List *) ring_item_getlist(pItem));
+	}
+	/* Check if we just need to return an item by reference */
+	if ( pVM->nRetItemRef ) {
+		pVM->nRetItemRef-- ;
+		return ;
+	}
 	/* Push Item Data */
 	if ( ring_item_gettype(pItem) == ITEMTYPE_STRING ) {
-		if ( (pVM->nRetItemRef > 0)  && (ring_vm_isstackpointertoobjstate(pVM)==1) ) {
-			RING_VM_STACK_SETPVALUE(pItem);
-			RING_VM_STACK_OBJTYPE = RING_OBJTYPE_LISTITEM ;
-			pVM->nRetItemRef-- ;
-			return ;
-		}
 		RING_VM_STACK_SETCVALUE2(ring_string_get(ring_item_getstring(pItem)),ring_string_size(ring_item_getstring(pItem)));
 	}
 	else if ( ring_item_gettype(pItem) == ITEMTYPE_NUMBER ) {
-		if ( (pVM->nRetItemRef > 0)  && (ring_vm_isstackpointertoobjstate(pVM)==1) ) {
-			RING_VM_STACK_SETPVALUE(pItem);
-			RING_VM_STACK_OBJTYPE = RING_OBJTYPE_LISTITEM ;
-			pVM->nRetItemRef-- ;
-			return ;
-		}
 		RING_VM_STACK_SETNVALUE(ring_item_getnumber(pItem));
 	}
-	else if ( ring_item_gettype(pItem) == ITEMTYPE_LIST ) {
-		if ( (pVM->nRetItemRef > 0)  && (ring_vm_isstackpointertoobjstate(pVM)==1) ) {
-			pVM->nRetItemRef-- ;
-		}
-		RING_VM_STACK_SETPVALUE(pItem);
-		RING_VM_STACK_OBJTYPE = RING_OBJTYPE_LISTITEM ;
-		ring_vm_oop_setbraceobj(pVM, (List *) ring_item_getlist(pItem));
-	}
 	else if ( ring_item_gettype(pItem) == ITEMTYPE_POINTER ) {
-		if ( (pVM->nRetItemRef > 0)  && (ring_vm_isstackpointertoobjstate(pVM)==1) ) {
-			RING_VM_STACK_SETPVALUE(pItem);
-			RING_VM_STACK_OBJTYPE = RING_OBJTYPE_LISTITEM ;
-			pVM->nRetItemRef-- ;
-			return ;
-		}
 		sprintf( cPointer , "%p" , ring_item_getpointer(pItem) ) ;
 		RING_VM_STACK_SETCVALUE2(cPointer,strlen(cPointer));
 	}

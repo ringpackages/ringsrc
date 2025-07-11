@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -13,10 +13,11 @@ int ring_vm_loadfunc ( VM *pVM )
 
 int ring_vm_loadfunc2 ( VM *pVM,const char *cStr,int nPerformance )
 {
-	List *pList,*pList2  ;
-	int y  ;
+	List *pList, *pList2, *pOptionalFunctions  ;
+	int y, nPos  ;
 	FuncCall *pFuncCall  ;
 	CFunction *pCFunc  ;
+	CFunction vCFunc  ;
 	/* Search */
 	for ( y = 2 ; y >= 1 ; y-- ) {
 		/* For OOP Support - Search in the Class Methods */
@@ -42,7 +43,7 @@ int ring_vm_loadfunc2 ( VM *pVM,const char *cStr,int nPerformance )
 			pList = pVM->pFunctionsMap ;
 		}
 		if ( ring_list_gethashtable(pList) == NULL ) {
-			ring_list_genhashtable2(pList);
+			ring_list_genhashtable2_gc(pVM->pRingState,pList);
 		}
 		pList2 = (List *) ring_hashtable_findpointer(ring_list_gethashtable(pList),cStr);
 		if ( pList2 != NULL ) {
@@ -119,6 +120,18 @@ int ring_vm_loadfunc2 ( VM *pVM,const char *cStr,int nPerformance )
 			break ;
 		}
 		pCFunc = pCFunc->pNext ;
+	}
+	/* Check Optional Functions */
+	if ( pCFunc == NULL ) {
+		pOptionalFunctions = ring_list_getlist(pVM->pDefinedGlobals,RING_GLOBALVARPOS_OPTIONALFUNCTIONS);
+		pOptionalFunctions = ring_list_getlist(pOptionalFunctions,RING_VAR_VALUE);
+		nPos = ring_list_findstring(pOptionalFunctions,cStr,RING_ZERO) ;
+		if ( nPos != RING_ZERO ) {
+			pCFunc = &vCFunc ;
+			pCFunc->cName = ring_list_getstring(pOptionalFunctions,nPos) ;
+			pCFunc->pFunc = ring_vm_optionalfunc ;
+			pCFunc->pNext = NULL ;
+		}
 	}
 	if ( pCFunc != NULL ) {
 		/* Add FuncCall Structure */
@@ -446,7 +459,7 @@ void ring_vm_newfunc ( VM *pVM )
 	/* Create new scope */
 	ring_vm_newscope(pVM);
 	/* Set the Local Scope ID */
-	pVM->nActiveScopeID = ++ pVM->nScopeID ;
+	ring_vm_newscopeid(pVM);
 	/* Set the SP then Check Parameters */
 	pFuncCall = RING_VM_LASTFUNCCALL ;
 	pFuncCall->nStatus = RING_FUNCSTATUS_STARTED ;
@@ -588,7 +601,7 @@ void ring_vm_movetoprevscope ( VM *pVM,int nFuncType )
 			return ;
 		}
 	}
-	else if ( RING_VM_STACK_OBJTYPE ==RING_OBJTYPE_LISTITEM ) {
+	else if ( RING_VM_STACK_OBJTYPE == RING_OBJTYPE_LISTITEM ) {
 		pItem = (Item *) RING_VM_STACK_READP ;
 		pList = ring_item_getlist(pItem);
 	}
@@ -825,9 +838,18 @@ void ring_vm_retitemref ( VM *pVM )
 {
 	List *pList  ;
 	FuncCall *pFuncCall  ;
-	pVM->nRetItemRef++ ;
-	/* We free the stack to avoid effects on nLoadAddressScope which is used by isstackpointertoobjstate */
-	ring_vm_freestack(pVM);
+	/* Check if we don't have item pointer */
+	if ( ! RING_VM_STACK_ISPOINTER ) {
+		return ;
+	}
+	if ( ! ( (RING_VM_STACK_OBJTYPE == RING_OBJTYPE_LISTITEM) || (RING_VM_STACK_OBJTYPE == RING_OBJTYPE_SUBSTRING) ) ) {
+		return ;
+	}
+	/* Check if we are not using object state */
+	if ( ! ring_vm_isstackpointertoobjstate(pVM) ) {
+		return ;
+	}
+	pVM->nRetItemRef = RING_ONE ;
 	/*
 	**  Check if we are in the operator method to increment the counter again 
 	**  We do this to avoid another PUSHV on the list item 
@@ -837,8 +859,8 @@ void ring_vm_retitemref ( VM *pVM )
 	*/
 	if ( RING_VM_FUNCCALLSCOUNT > 0 ) {
 		pFuncCall = RING_VM_LASTFUNCCALL ;
-		if ( strcmp(pFuncCall->cName,RING_CSTR_OPERATOR) == 0 ) {
-			pVM->nRetItemRef++ ;
+		if ( (pFuncCall->lMethod == RING_TRUE) && (strcmp(pFuncCall->cName,RING_CSTR_OPERATOR) == RING_ZERO) ) {
+			pVM->nRetItemRef = RING_TWO ;
 		}
 	}
 }
@@ -918,4 +940,21 @@ int ring_vm_funccall_paracount ( VM *pVM )
 		}
 	}
 	return RING_ZERO ;
+}
+
+void ring_vm_newscopeid ( VM *pVM )
+{
+	/* Set the Local Scope ID */
+	pVM->nActiveScopeID = ++ pVM->nScopeID ;
+	/* Check Scope ID overflow */
+	if ( pVM->nActiveScopeID == 0 ) {
+		ring_vm_afterscopeidoverflow(pVM);
+	}
+}
+
+void ring_vm_optionalfunc ( void *pPointer )
+{
+	VM *pVM  ;
+	pVM = (VM *) pPointer ;
+	RING_VM_STACK_PUSHNVALUE(RING_ZERO);
 }

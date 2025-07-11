@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -40,7 +40,7 @@ int ring_vm_eval ( VM *pVM,const char *cStr )
 		**  Generate Code 
 		**  Generate  Hash Table 
 		*/
-		ring_list_genhashtable2(pVM->pFunctionsMap);
+		ring_list_genhashtable2_gc(pVM->pRingState,pVM->pFunctionsMap);
 		if ( pVM->lEvalCalledFromRingCode ) {
 			ring_scanner_addreturn3(pVM->pRingState,aPara);
 		}

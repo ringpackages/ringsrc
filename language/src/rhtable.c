@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -158,35 +158,41 @@ HashTable * ring_hashtable_delete_gc ( void *pRingState,HashTable *pHashTable )
 
 void ring_hashtable_rebuild_gc ( void *pRingState,HashTable *pHashTable )
 {
-	HashItem **pArray  ;
-	int nLinkedLists,x  ;
-	HashItem *pItem,*pItem2  ;
+	HashItem **pOldArray  ;
+	int nOldLinkedLists, x, nNewIndex  ;
+	HashItem *pItem, *pNextItem, *pItemIterator  ;
+	/* If the number of items doesn't meet the rebuild threshoud, do nothing */
 	if ( pHashTable->nItems != pHashTable->nRebuildSize ) {
 		return ;
 	}
-	pArray = pHashTable->pArray ;
-	nLinkedLists = pHashTable->nLinkedLists ;
+	/* Store old table properties */
+	pOldArray = pHashTable->pArray ;
+	nOldLinkedLists = pHashTable->nLinkedLists ;
+	/* Create the new, larger table structure */
 	pHashTable->nRebuildSize *= 2 ;
 	pHashTable->nLinkedLists *= 2 ;
 	pHashTable->pArray = (HashItem **) ring_state_calloc(pRingState,pHashTable->nLinkedLists,sizeof(HashItem *));
-	for ( x = 0 ; x < nLinkedLists ; x++ ) {
-		pItem = pArray[x] ;
+	/* Re-hash and move all items from the old table to the new one */
+	for ( x = 0 ; x < nOldLinkedLists ; x++ ) {
+		pItem = pOldArray[x] ;
 		while ( pItem != NULL ) {
-			/* Rehash the item */
-			if ( pItem->nItemType == RING_HASHITEMTYPE_NUMBER ) {
-				ring_hashtable_newnumber(pHashTable,pItem->cKey,pItem->HashValue.nIndex);
+			pNextItem = pItem->pNext ;
+			pItem->pNext = NULL ;
+			nNewIndex = ring_hashtable_hashkey(pHashTable, pItem->cKey);
+			pItemIterator = pHashTable->pArray[nNewIndex] ;
+			if ( pItemIterator == NULL ) {
+				pHashTable->pArray[nNewIndex] = pItem ;
 			}
-			else if ( pItem->nItemType == RING_HASHITEMTYPE_POINTER ) {
-				ring_hashtable_newpointer(pHashTable,pItem->cKey,pItem->HashValue.pValue);
+			else {
+				while ( pItemIterator->pNext != NULL ) {
+					pItemIterator = pItemIterator->pNext ;
+				}
+				pItemIterator->pNext = pItem ;
 			}
-			pItem2 = pItem->pNext ;
-			ring_state_free(pRingState,pItem->cKey);
-			ring_state_free(pRingState,pItem);
-			pItem = pItem2 ;
-			pHashTable->nItems-- ;
+			pItem = pNextItem ;
 		}
 	}
-	ring_state_free(pRingState,pArray);
+	ring_state_free(pRingState,pOldArray);
 }
 
 void ring_hashtable_print ( HashTable *pHashTable )

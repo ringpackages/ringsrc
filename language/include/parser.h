@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2024 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_parser_h
 	#define ring_parser_h
@@ -183,7 +183,7 @@
 	#define RING_RULE_FACTORISLITERAL "Rule : Factor --> Literal"
 	#define RING_RULE_HASHLIST "Rule : Literal --> ':' Identifier ['=' Expr]"
 	#define RING_RULE_NEGATIVE "Rule : Factor --> '-' Factor"
-	#define RING_RULE_BITNOT "Rule : Factor --> '~' Expr"
+	#define RING_RULE_BITNOT "Rule : Factor --> '~' Factor"
 	#define RING_RULE_FACTORISEMPTYGROUP "Rule : Factor --> '()'"
 	#define RING_RULE_FACTORISGROUP "Rule : Factor --> '(' Expr ')'"
 	#define RING_RULE_FACTORISLIST "Rule : Factor --> List"
