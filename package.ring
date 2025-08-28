@@ -101,7 +101,7 @@ aPackageInfo = [
 		"language/src/vmvars.c",
 		"language/src/vminfo_e.c",
 		"language/src/vmthread.c",
-		"language/CMakeLists.txt",
+		"language/CMakeLists.txt"
 	],
 	:windowsfiles = 	[
 
