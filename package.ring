@@ -97,11 +97,11 @@ aPackageInfo = [
 		"language/src/vmstack.c",
 		"language/src/vmstate.c",
 		"language/src/vmstr.c",
-		"language/src/vmthreads.c",
 		"language/src/vmtry.c",
 		"language/src/vmvars.c",
 		"language/src/vminfo_e.c",
-		"language/src/vmthread.c"
+		"language/src/vmthread.c",
+		"language/CMakeLists.txt",
 	],
 	:windowsfiles = 	[
 
