@@ -51,6 +51,7 @@ aPackageInfo = [
 		"language/include/state.h",
 		"language/include/test.h",
 		"language/include/vm.h",
+		"language/include/vmoop.h",
 		"language/include/vmgc.h",
 		"language/include/vmgcdata.h",
 		"language/include/rconfig.h",
