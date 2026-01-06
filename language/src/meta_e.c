@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -148,8 +148,6 @@ void ring_vm_refmeta_isglobal(void *pPointer) {
 
 void ring_vm_refmeta_isfunction(void *pPointer) {
 	VM *pVM;
-	unsigned int x;
-	List *pList, *pList2;
 	char *cStr;
 	if (RING_API_PARACOUNT != 1) {
 		RING_API_ERROR(RING_API_BADPARACOUNT);
@@ -158,15 +156,7 @@ void ring_vm_refmeta_isfunction(void *pPointer) {
 	if (RING_API_ISSTRING(1)) {
 		pVM = (VM *)pPointer;
 		cStr = ring_general_lower(RING_API_GETSTRING(1));
-		pList = pVM->pFunctionsMap;
-		for (x = 1; x <= ring_list_getsize(pList); x++) {
-			pList2 = ring_list_getlist(pList, x);
-			if (strcmp(ring_list_getstring(pList2, RING_FUNCMAP_NAME), cStr) == 0) {
-				RING_API_RETNUMBER(1);
-				return;
-			}
-		}
-		RING_API_RETNUMBER(0);
+		RING_API_RETNUMBER(ring_vm_findfuncusinghashtable(pVM, pVM->pFunctionsMap, cStr) != NULL);
 	} else {
 		RING_API_ERROR(RING_API_BADPARATYPE);
 	}
@@ -634,7 +624,9 @@ void ring_vm_refmeta_addmethod(void *pPointer) {
 					ring_vm_custmutexlock(pVM,
 							      pVM->aCustomMutex[RING_VM_CUSTOMMUTEX_FUNCHASHTABLE]);
 					if (ring_list_gethashtable(pList) != NULL) {
-						ring_list_genhashtable2_gc(pVM->pRingState, pList);
+						ring_hashtable_newpointer_gc(pVM->pRingState,
+									     ring_list_gethashtable(pList),
+									     RING_API_GETSTRING(2), pList3);
 					}
 					ring_vm_custmutexunlock(pVM,
 								pVM->aCustomMutex[RING_VM_CUSTOMMUTEX_FUNCHASHTABLE]);
@@ -739,7 +731,7 @@ void ring_vm_refmeta_setattribute(void *pPointer) {
 }
 
 void ring_vm_refmeta_mergemethods(void *pPointer) {
-	unsigned int x;
+	unsigned int x, nSize;
 	List *pList, *pList2, *pList3;
 	VM *pVM;
 	char *cStr, *cStr2;
@@ -795,11 +787,17 @@ void ring_vm_refmeta_mergemethods(void *pPointer) {
 			return;
 		}
 		/* Copy Methods from Source to Dest */
+		nSize = ring_list_getsize(pList2);
 		ring_list_copy_gc(pVM->pRingState, pList2, pList3);
 		/* Refresh the HashTable */
 		ring_vm_custmutexlock(pVM, pVM->aCustomMutex[RING_VM_CUSTOMMUTEX_FUNCHASHTABLE]);
 		if (ring_list_gethashtable(pList2) != NULL) {
-			ring_list_genhashtable2_gc(pVM->pRingState, pList2);
+			for (x = nSize + 1; x <= ring_list_getsize(pList2); x++) {
+				ring_hashtable_newpointer_gc(
+				    pVM->pRingState, ring_list_gethashtable(pList2),
+				    ring_list_getstring(ring_list_getlist(pList2, x), RING_FUNCMAP_NAME),
+				    ring_list_getlist(pList2, x));
+			}
 		}
 		ring_vm_custmutexunlock(pVM, pVM->aCustomMutex[RING_VM_CUSTOMMUTEX_FUNCHASHTABLE]);
 	} else {

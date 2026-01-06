@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 #ifndef ring_vmoop
 #define ring_vmoop
 /*
@@ -19,7 +19,6 @@
 #define RING_OBJECT_CLASSPOINTER 1
 #define RING_OBJECT_OBJECTDATA 2
 #define RING_OBJECT_SELFATTRIBUTE 1
-#define RING_OBJECT_ISATTRIBUTESEARCHSTART 3
 /* pObjState */
 #define RING_OBJSTATE_SCOPE 1
 #define RING_OBJSTATE_METHODS 2
@@ -155,4 +154,6 @@ unsigned int ring_vm_oop_isattribute(VM *pVM, List *pList, const char *cStr);
 unsigned int ring_vm_oop_addattribute(VM *pVM, List *pList, char *cStr);
 
 void ring_vm_oop_cleansetpropertylist(VM *pVM);
+
+int ring_vm_oop_internalcallforbracemethod(VM *pVM, const char *cMethod);
 #endif

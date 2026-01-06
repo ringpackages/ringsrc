@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_parser_h
 #define ring_parser_h
@@ -23,6 +23,11 @@ typedef struct Parser {
 	unsigned int nClassMark;
 	/* Counter to know if we are inside { } or not */
 	unsigned int nBracesCounter;
+	/* Counter to know if we are inside specific control structure */
+	unsigned int nIfCounter;
+	unsigned int nSwitchCounter;
+	unsigned int nTryCatchCounter;
+	unsigned int nDoAgainCounter;
 	/* Active Token */
 	unsigned int nActiveToken;
 	unsigned int nTokensCount;
@@ -239,6 +244,8 @@ int ring_parser_settoken(Parser *pParser, unsigned int nToken);
 int ring_parser_isanykeyword(Parser *pParser);
 
 int ring_parser_isoperator2(Parser *pParser, SCANNER_OPERATOR nType);
+
+void ring_parser_keywordtoidentifier(Parser *pParser, unsigned int lIdentifier);
 /* Display Errors */
 
 void ring_parser_error(Parser *pParser, const char *cStr);
@@ -297,4 +304,6 @@ int ring_parser_objattributes(Parser *pParser);
 int ring_parser_bracesandend(Parser *pParser, int lClass, SCANNER_KEYWORD nKeyword);
 
 int ring_parser_ringvmsee(Parser *pParser);
+
+void ring_parser_processkeywords(Parser *pParser);
 #endif

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -42,12 +42,7 @@ RING_API int ring_vm_loadfunc2(VM *pVM, const char *cStr, int nPerformance) {
 			pList = pVM->pFunctionsMap;
 		}
 		/* Use the HashTable */
-		ring_vm_custmutexlock(pVM, pVM->aCustomMutex[RING_VM_CUSTOMMUTEX_FUNCHASHTABLE]);
-		if (ring_list_gethashtable(pList) == NULL) {
-			ring_list_genhashtable2_gc(pVM->pRingState, pList);
-		}
-		pList2 = (List *)ring_hashtable_findpointer(ring_list_gethashtable(pList), cStr);
-		ring_vm_custmutexunlock(pVM, pVM->aCustomMutex[RING_VM_CUSTOMMUTEX_FUNCHASHTABLE]);
+		pList2 = ring_vm_findfuncusinghashtable(pVM, pList, cStr);
 		if (pList2 != NULL) {
 			/* Error when the method is private */
 			if (ring_list_getint(pList2, RING_FUNCMAP_PRIVATEFLAG) == 1) {
@@ -249,56 +244,62 @@ RING_API void ring_vm_call2(VM *pVM) {
 		pVM->lIgnoreCPointerTypeCheck = 0;
 		/* Call Function */
 		pFuncCall->pFunc(pVM);
-		/* Correct Stack Position */
-		if (pVM->nSP > pFuncCall->nSP + pVM->nCFuncParaCount) {
-			ring_vm_stackswap(pVM, pVM->nSP, pFuncCall->nSP + 1);
-			pVM->nSP = pFuncCall->nSP + 1;
+		/* After calling a C function */
+		ring_vm_aftercfunction(pVM, pFuncCall);
+	}
+}
+
+RING_API void ring_vm_aftercfunction(VM *pVM, FuncCall *pFuncCall) {
+	/*
+	**  After Calling C Function
+	**  Correct Stack Position
+	*/
+	if (pVM->nSP > pFuncCall->nSP + pVM->nCFuncParaCount) {
+		ring_vm_stackswap(pVM, pVM->nSP, pFuncCall->nSP + 1);
+		pVM->nSP = pFuncCall->nSP + 1;
+	} else {
+		pVM->nSP = pFuncCall->nSP;
+		/*
+		**  Function Output
+		**  IgnoreNULL is Used by len(object) to get output from operator overloading method
+		*/
+		if (pVM->lIgnoreNULL == 0) {
+			RING_VM_STACK_PUSHCVALUE(RING_CSTR_EMPTY);
 		} else {
-			pVM->nSP = pFuncCall->nSP;
-			/*
-			**  Function Output
-			**  IgnoreNULL is Used by len(object) to get output from operator overloading method
-			*/
-			if (pVM->lIgnoreNULL == 0) {
-				RING_VM_STACK_PUSHCVALUE(RING_CSTR_EMPTY);
-			} else {
-				pVM->lIgnoreNULL = 0;
-			}
+			pVM->lIgnoreNULL = 0;
 		}
-		/* Trace */
-		RING_VM_TRACEEVENT(RING_VM_TRACEEVENT_AFTERCFUNC);
-		/* Check for function termination by try/catch */
-		if (pVM->lActiveCatch == 1) {
-			/*
-			**  We don't remove the function from call list because ring_vm_catch() do when restore state
-			**  We don't delete the scope because ring_vm_catch() will do when restore state
-			**  We don't restore pActiveMem because it's managed correctly by state functions (Save/Restore)
-			*for Try/Catch
-			**  Avoiding the pActiveMem restore here is important when we have raise() function called after
-			*try/catch
-			*/
-			return;
-		}
-		/* Return (Delete Function Call List) */
-		RING_VM_DELETELASTFUNCCALL;
-		/* Restore nFuncSP value */
-		if (RING_VM_FUNCCALLSCOUNT > 0) {
-			pFuncCall = RING_VM_LASTFUNCCALL;
-			pVM->nFuncSP = pFuncCall->nSP;
-		} else {
-			pVM->nFuncSP = 0;
-		}
-		/* if eval() is called, start the main loop again */
-		if (pVM->lEvalCalledFromRingCode == 1) {
-			pVM->lEvalCalledFromRingCode = 0;
-			/*
-			**  We use Stack POP to remove the empty string that we return after functions
-			**  This enable the code generated from eval() to be able to return any value
-			**  Using the return command
-			*/
-			RING_VM_STACK_POP;
-			ring_vm_mainloopforeval(pVM);
-		}
+	}
+	/* Trace */
+	RING_VM_TRACEEVENT(RING_VM_TRACEEVENT_AFTERCFUNC);
+	/* Check for function termination by try/catch */
+	if (pVM->lActiveCatch == 1) {
+		/*
+		**  We don't remove the function from call list because ring_vm_catch() do when restore state
+		**  We don't delete the scope because ring_vm_catch() will do when restore state
+		**  We don't restore pActiveMem because it's managed correctly by state functions (Save/Restore) for T
+		**  Avoiding the pActiveMem restore here is important when we have raise() function called after try/cat
+		*/
+		return;
+	}
+	/* Return (Delete Function Call List) */
+	RING_VM_DELETELASTFUNCCALL;
+	/* Restore nFuncSP value */
+	if (RING_VM_FUNCCALLSCOUNT > 0) {
+		pFuncCall = RING_VM_LASTFUNCCALL;
+		pVM->nFuncSP = pFuncCall->nSP;
+	} else {
+		pVM->nFuncSP = 0;
+	}
+	/* if eval() is called, start the main loop again */
+	if (pVM->lEvalCalledFromRingCode == 1) {
+		pVM->lEvalCalledFromRingCode = 0;
+		/*
+		**  We use Stack POP to remove the empty string that we return after functions
+		**  This enable the code generated from eval() to be able to return any value
+		**  Using the return command
+		*/
+		RING_VM_STACK_POP;
+		ring_vm_mainloopforeval(pVM);
 	}
 }
 
@@ -698,11 +699,35 @@ void ring_vm_createtemplist(VM *pVM) {
 
 void ring_vm_anonymous(VM *pVM) {
 	char *cStr;
+	FuncCall *pFuncCall;
+	char lCanCallAsMethod;
+	List *pList;
 	if (RING_VM_STACK_ISSTRING) {
+		lCanCallAsMethod = RING_FALSE;
+		if (RING_VM_FUNCCALLSCOUNT) {
+			pFuncCall = RING_VM_LASTFUNCCALL;
+			lCanCallAsMethod = pFuncCall->lMethod;
+		}
 		cStr = RING_VM_STACK_READC;
 		RING_VM_STACK_POP;
 		ring_general_lower(cStr);
-		ring_vm_loadfunc2(pVM, cStr, RING_FALSE);
+		if (ring_vm_loadfunc2(pVM, cStr, RING_FALSE)) {
+			if (RING_VM_IR_READI && RING_VM_FUNCCALLSCOUNT) {
+				if (ring_list_getsize(pVM->pObjState) != 0) {
+					pList = ring_list_getlist(pVM->pObjState, ring_list_getsize(pVM->pObjState));
+					pList = (List *)ring_list_getpointer(pList, RING_OBJSTATE_SCOPE);
+					if (pList != NULL) {
+						lCanCallAsMethod = RING_TRUE;
+					}
+				}
+				if (lCanCallAsMethod) {
+					pFuncCall = RING_VM_LASTFUNCCALL;
+					pFuncCall->lMethod = RING_TRUE;
+				} else {
+					ring_vm_error(pVM, RING_VM_ERROR_BRACEWITHOUTOBJECT);
+				}
+			}
+		}
 	} else {
 		ring_vm_error(pVM, RING_VM_ERROR_BADCALLPARA);
 	}
@@ -913,4 +938,17 @@ void ring_vm_optionalfunc(void *pPointer) {
 	VM *pVM;
 	pVM = (VM *)pPointer;
 	RING_VM_STACK_PUSHNVALUE(RING_ZERO);
+}
+
+List *ring_vm_findfuncusinghashtable(VM *pVM, List *pFuncsList, const char *cFuncName) {
+	List *pFuncList;
+	pFuncList = NULL;
+	/* Use the HashTable */
+	ring_vm_custmutexlock(pVM, pVM->aCustomMutex[RING_VM_CUSTOMMUTEX_FUNCHASHTABLE]);
+	if (ring_list_gethashtable(pFuncsList) == NULL) {
+		ring_list_genhashtable2_gc(pVM->pRingState, pFuncsList);
+	}
+	pFuncList = (List *)ring_hashtable_findpointer(ring_list_gethashtable(pFuncsList), cFuncName);
+	ring_vm_custmutexunlock(pVM, pVM->aCustomMutex[RING_VM_CUSTOMMUTEX_FUNCHASHTABLE]);
+	return pFuncList;
 }

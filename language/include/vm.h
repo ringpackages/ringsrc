@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_vm_h
 #define ring_vm_h
@@ -113,6 +113,7 @@ typedef struct VM {
 	List *pDeleteLater;
 	List *pDefinedGlobals;
 	List *pTrackedVariables;
+	List *pLiterals;
 	String *pPackageName;
 	String *pTrace;
 	ByteCode *pByteCode;
@@ -722,6 +723,8 @@ unsigned int ring_vm_findvar(VM *pVM, const char *cStr);
 
 unsigned int ring_vm_findvar2(VM *pVM, unsigned int nLevel, List *pList2, const char *cStr);
 
+List *ring_vm_findvarusinghashtable(VM *pVM, List *pList, const char *cStr);
+
 void ring_vm_newvar(VM *pVM, const char *cStr);
 
 List *ring_vm_newvar2(VM *pVM, const char *cStr, List *pParent);
@@ -810,6 +813,8 @@ void ring_vm_call(VM *pVM);
 
 RING_API void ring_vm_call2(VM *pVM);
 
+RING_API void ring_vm_aftercfunction(VM *pVM, FuncCall *pFuncCall);
+
 void ring_vm_preparecallmethod(VM *pVM);
 
 void ring_vm_return(VM *pVM);
@@ -855,6 +860,8 @@ unsigned int ring_vm_funccallparacount(VM *pVM);
 void ring_vm_newscopeid(VM *pVM);
 
 void ring_vm_optionalfunc(void *pPointer);
+
+List *ring_vm_findfuncusinghashtable(VM *pVM, List *pFuncsList, const char *cFuncName);
 /* String As Array */
 
 void ring_vm_stringpushv(VM *pVM);
@@ -878,7 +885,11 @@ void ring_vm_range(VM *pVM);
 List *ring_vm_rangenewlist(VM *pVM);
 /* Faster instructions */
 
+int ring_vm_pushvarptr(VM *pVM);
+
 void ring_vm_pushp(VM *pVM);
+
+void ring_vm_pushplocal(VM *pVM);
 
 void ring_vm_incp(VM *pVM);
 
@@ -889,8 +900,6 @@ void ring_vm_incjump(VM *pVM);
 void ring_vm_incpjump(VM *pVM);
 
 void ring_vm_loadfuncp(VM *pVM);
-
-void ring_vm_pushplocal(VM *pVM);
 
 void ring_vm_pusharg(VM *pVM);
 

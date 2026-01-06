@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -214,6 +214,8 @@ VM *ring_vm_new(RingState *pRingState) {
 	pVM->nPausePC = 1;
 	/* Tracked List of Variables - Each variable is a pointer to a List item */
 	pVM->pTrackedVariables = ring_list_new_gc(pVM->pRingState, RING_ZERO);
+	/* List of literals - Used when translating C functions */
+	pVM->pLiterals = ring_list_new_gc(pVM->pRingState, RING_ZERO);
 	/* Create Arguments Cache */
 	ring_vm_newargcache(pVM);
 	return pVM;
@@ -265,6 +267,7 @@ VM *ring_vm_delete(VM *pVM) {
 	pVM->pDeleteLater = ring_list_delete_gc(pVM->pRingState, pVM->pDeleteLater);
 	pVM->pDefinedGlobals = ring_list_delete_gc(pVM->pRingState, pVM->pDefinedGlobals);
 	pVM->pTrackedVariables = ring_list_delete_gc(pVM->pRingState, pVM->pTrackedVariables);
+	pVM->pLiterals = ring_list_delete_gc(pVM->pRingState, pVM->pLiterals);
 	/* Delete Arguments Cache */
 	ring_vm_deleteargcache(pVM);
 	/* Delete C Functions */
@@ -361,9 +364,7 @@ void ring_vm_defragmentation(RingState *pRingState, VM *pVM) {
 void ring_vm_updateclassespointers(RingState *pRingState) {
 	unsigned int x, x2, x3, x4, lFound;
 	List *pList, *pList2, *pList3, *pPackageList;
-	const char *cString;
-	char cPackageName[RING_HUGEBUF];
-	char cClassName[RING_HUGEBUF];
+	char *cString, *cPackageName, *cClassName;
 	/* Update Package Pointers in Packages Classes */
 	for (x = 1; x <= ring_list_getsize(pRingState->pRingPackagesMap); x++) {
 		pList = ring_list_getlist(pRingState->pRingPackagesMap, x);
@@ -380,29 +381,18 @@ void ring_vm_updateclassespointers(RingState *pRingState) {
 	*/
 	for (x = 1; x <= ring_list_getsize(pRingState->pRingClassesMap); x++) {
 		pList = ring_list_getlist(pRingState->pRingClassesMap, x);
-		cString = ring_list_getstring(pList, RING_CLASSMAP_CLASSNAME);
-		if (ring_list_getstringsize(pList, RING_CLASSMAP_CLASSNAME) > RING_HUGEBUF) {
-			/* Avoid large names */
+		if (ring_list_getsize(pList) != RING_CLASSMAP_IMPORTEDCLASSSIZE) {
 			continue;
 		}
+		cString = ring_list_getstring(pList, RING_CLASSMAP_CLASSNAME);
 		x2 = ring_list_getstringsize(pList, RING_CLASSMAP_CLASSNAME);
 		while (x2 > 0) {
 			x2--;
 			if (cString[x2] == '.') {
-				/*
-				**  Now we have a class name stored as packagename.classname
-				**  Get Package Name
-				*/
-				for (x3 = 0; x3 < x2; x3++) {
-					cPackageName[x3] = cString[x3];
-				}
-				cPackageName[x2] = '\0';
-				/* Get Class Name */
-				for (x3 = x2 + 1; x3 <= ring_list_getstringsize(pList, RING_CLASSMAP_CLASSNAME) - 1;
-				     x3++) {
-					cClassName[x3 - x2 - 1] = cString[x3];
-				}
-				cClassName[ring_list_getstringsize(pList, RING_CLASSMAP_CLASSNAME) - 1 - x2] = '\0';
+				/* Now we have a class name stored as packagename.classname */
+				cString[x2] = '\0';
+				cPackageName = cString;
+				cClassName = cString + x2 + 1;
 				/* Get The Package List */
 				for (x3 = 1; x3 <= ring_list_getsize(pRingState->pRingPackagesMap); x3++) {
 					pPackageList = ring_list_getlist(pRingState->pRingPackagesMap, x3);
@@ -419,36 +409,14 @@ void ring_vm_updateclassespointers(RingState *pRingState) {
 								    pList,
 								    RING_CLASSMAP_POINTERTOLISTOFCLASSINSIDEPACKAGE,
 								    (void *)pList3);
-								/* Update Package Pointer in the Class List */
-								ring_list_setpointer(pList3,
-										     RING_CLASSMAP_POINTERTOPACKAGE,
-										     (void *)pPackageList);
 								break;
 							}
 						}
 						break;
 					}
 				}
-			}
-		}
-	}
-	/* Update Class Pointer in Code */
-	for (x = 1; x <= ring_list_getsize(pRingState->pRingGenCode); x++) {
-		pList = ring_list_getlist(pRingState->pRingGenCode, x);
-		if (ring_list_getint(pList, RING_PARSER_ICG_OPERATIONCODE) == ICO_NEWCLASS) {
-			cString = ring_list_getstring(pList, RING_PARSER_ICG_PARA1);
-			lFound = 0;
-			for (x2 = 1; x2 <= ring_list_getsize(pRingState->pRingClassesMap); x2++) {
-				pList2 = ring_list_getlist(pRingState->pRingClassesMap, x2);
-				if (strcmp(cString, ring_list_getstring(pList2, RING_CLASSMAP_CLASSNAME)) == 0) {
-					lFound = 1;
-					ring_list_setpointer(pList, RING_PARSER_ICG_PARA2, pList2);
-					break;
-				}
-			}
-			/* If we can't find the list (the class is inside a package) */
-			if (lFound == 0) {
-				ring_list_setpointer(pList, RING_PARSER_ICG_PARA2, NULL);
+				cString[x2] = '.';
+				break;
 			}
 		}
 	}

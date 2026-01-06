@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -137,6 +137,7 @@ void ring_parser_icg_newline(Parser *pParser, int nLine) {
 	}
 	ring_parser_icg_newoperation(pParser, ICO_NEWLINE);
 	ring_parser_icg_newoperandint(pParser, nLine);
+	ring_parser_icg_newoperandint(pParser, pParser->nBracesCounter > 0);
 }
 
 char *ring_parser_icg_parentclassname(Parser *pParser) {

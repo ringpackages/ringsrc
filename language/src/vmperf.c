@@ -1,14 +1,8 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
-void ring_vm_pushp(VM *pVM) {
-	RING_VM_STACK_PUSHP;
-	RING_VM_STACK_OBJTYPE = RING_OBJTYPE_VARIABLE;
-	ring_vm_updatescopeinfo(pVM, RING_VARSCOPE_GLOBAL);
-}
-
-void ring_vm_pushplocal(VM *pVM) {
+int ring_vm_pushvarptr(VM *pVM) {
 	/* Check Scope Life Time */
 	if (RING_VM_IR_GETINTREG != pVM->nActiveScopeID) {
 		/* Reset register used for the pointer */
@@ -16,11 +10,23 @@ void ring_vm_pushplocal(VM *pVM) {
 		RING_VM_IR_SETREG2TYPE(RING_VM_REGTYPE_INT);
 		RING_VM_IR_OPCODE = ICO_LOADADDRESS;
 		ring_vm_loadaddress(pVM);
-		return;
+		return RING_FALSE;
 	}
 	RING_VM_STACK_PUSHPVALUE(RING_VM_IR_READPVALUE(RING_VM_IR_REG2));
 	RING_VM_STACK_OBJTYPE = RING_OBJTYPE_VARIABLE;
-	ring_vm_updatescopeinfo(pVM, RING_VARSCOPE_LOCAL);
+	return RING_TRUE;
+}
+
+void ring_vm_pushp(VM *pVM) {
+	if (ring_vm_pushvarptr(pVM)) {
+		ring_vm_updatescopeinfo(pVM, RING_VARSCOPE_GLOBAL);
+	}
+}
+
+void ring_vm_pushplocal(VM *pVM) {
+	if (ring_vm_pushvarptr(pVM)) {
+		ring_vm_updatescopeinfo(pVM, RING_VARSCOPE_LOCAL);
+	}
 }
 
 void ring_vm_pusharg(VM *pVM) {

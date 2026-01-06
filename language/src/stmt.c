@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -18,6 +18,12 @@ int ring_parser_class(Parser *pParser) {
 			ring_parser_icg_retnull(pParser);
 			ring_parser_icg_newoperation(pParser, ICO_NEWCLASS);
 			ring_parser_icg_newoperand(pParser, pParser->cTokenText);
+			/*
+			**  Add location for the class pointer to the generated code
+			**  We don't add the pointer itself because classes could be moved to another list before code
+			*execution
+			*/
+			ring_parser_icg_newoperandpointer(pParser, NULL);
 			pNewClass = ring_parser_icg_getactiveoperation(pParser);
 			/* Add Class to Classes Table */
 			pList = pParser->pClassesMap;
@@ -36,8 +42,6 @@ int ring_parser_class(Parser *pParser) {
 			pList = ring_list_newlist_gc(pParser->pRingState, pList);
 			ring_list_addstring_gc(pParser->pRingState, pList, pParser->cTokenText);
 			ring_list_addint_gc(pParser->pRingState, pList, ring_parser_icg_instructionscount(pParser));
-			/* Add class pointer to generated code */
-			ring_parser_icg_newoperandpointer(pParser, pList);
 			/* Add the class to the HashTable */
 			if (ring_list_gethashtable(pParser->pClassesMap) != NULL) {
 				ring_hashtable_newpointer_gc(pParser->pRingState,
@@ -536,6 +540,8 @@ int ring_parser_stmt(Parser *pParser) {
 								}
 								/* POP Step */
 								ring_parser_icg_newoperation(pParser, ICO_POPSTEP);
+								/* Optional Loop */
+								ring_parser_icg_newoperation(pParser, ICO_OPTIONALLOOP);
 								ring_parser_nexttoken(pParser);
 								RING_STATE_PRINTRULE(RING_RULE_NEXT);
 								ring_string_delete_gc(pParser->pRingState, pString);
@@ -681,11 +687,12 @@ int ring_parser_stmt(Parser *pParser) {
 							    pParser, ring_list_getstring(pParser->pForInVars, nVar));
 							ring_parser_icg_newoperation(pParser, ICO_KILLREFERENCE);
 						}
-						ring_parser_icg_newoperation(pParser, ICO_OPTIONALLOOP);
 						if (nForInVarsCount == 1) {
 							ring_list_deleteallitems_gc(pParser->pRingState,
 										    pParser->pForInVars);
 						}
+						/* Optional Loop */
+						ring_parser_icg_newoperation(pParser, ICO_OPTIONALLOOP);
 						/* Print the rule */
 						RING_STATE_PRINTRULE(RING_RULE_NEXT);
 						ring_string_delete_gc(pParser->pRingState, pString);
@@ -701,6 +708,7 @@ int ring_parser_stmt(Parser *pParser) {
 	}
 	/* Statement --> IF Expr Statements OK */
 	if (ring_parser_iskeyword(pParser, K_IF)) {
+		pParser->nIfCounter++;
 		ring_parser_nexttoken(pParser);
 		RING_PARSER_IGNORENEWLINE;
 		pParser->lAssignmentFlag = 0;
@@ -766,12 +774,14 @@ int ring_parser_stmt(Parser *pParser) {
 				ring_list_delete_gc(pParser->pRingState, pList2);
 				ring_parser_nexttoken(pParser);
 				RING_STATE_PRINTRULE(RING_RULE_OK);
+				pParser->nIfCounter--;
 				return RING_PARSER_OK;
 			} else {
 				ring_parser_error(pParser, RING_PARSER_ERROR_OK);
 				ring_list_delete_gc(pParser->pRingState, pList2);
 			}
 		}
+		pParser->nIfCounter--;
 		return RING_PARSER_FAIL;
 	}
 	/* Statement --> WHILE Expr Statements END */
@@ -827,6 +837,8 @@ int ring_parser_stmt(Parser *pParser) {
 				}
 				/* POP Step */
 				ring_parser_icg_newoperation(pParser, ICO_POPSTEP);
+				/* Optional Loop */
+				ring_parser_icg_newoperation(pParser, ICO_OPTIONALLOOP);
 				ring_parser_nexttoken(pParser);
 				RING_STATE_PRINTRULE(RING_RULE_END);
 				return RING_PARSER_OK;
@@ -851,6 +863,7 @@ int ring_parser_stmt(Parser *pParser) {
 		/* Free Temp Lists */
 		ring_parser_icg_genfreetemplists(pParser);
 		RING_STATE_PRINTRULE(RING_RULE_DOAGAINLOOP);
+		pParser->nDoAgainCounter++;
 		ring_parser_nexttoken(pParser);
 		/* Save Loop|Exit commands status */
 		lLoopOrExitCommand = pParser->lLoopOrExitCommand;
@@ -886,13 +899,17 @@ int ring_parser_stmt(Parser *pParser) {
 				}
 				/* POP Step */
 				ring_parser_icg_newoperation(pParser, ICO_POPSTEP);
+				/* Optional Loop */
+				ring_parser_icg_newoperation(pParser, ICO_OPTIONALLOOP);
 				pParser->lAssignmentFlag = 1;
 				RING_STATE_PRINTRULE(RING_RULE_AGAINEXPR);
+				pParser->nDoAgainCounter--;
 				return RING_PARSER_OK;
 			}
 		} else {
 			ring_parser_error(pParser, RING_PARSER_ERROR_AGAIN);
 		}
+		pParser->nDoAgainCounter--;
 		return RING_PARSER_FAIL;
 	}
 	/* Statement --> Return Expr */
@@ -946,6 +963,7 @@ int ring_parser_stmt(Parser *pParser) {
 	}
 	/* Statement --> Try {Statement} Catch {Statement} Done */
 	if (ring_parser_iskeyword(pParser, K_TRY)) {
+		pParser->nTryCatchCounter++;
 		ring_parser_nexttoken(pParser);
 		RING_PARSER_IGNORENEWLINE;
 		if (ring_parser_isoperator2(pParser, OP_BRACEOPEN)) {
@@ -981,6 +999,7 @@ int ring_parser_stmt(Parser *pParser) {
 				ring_parser_icg_newoperation(pParser, ICO_DONE);
 				nMark3 = ring_parser_icg_newlabel(pParser);
 				ring_parser_icg_addoperandint(pParser, pMark3, nMark3);
+				pParser->nTryCatchCounter--;
 				return RING_PARSER_OK;
 			} else {
 				ring_parser_error(pParser, RING_PARSER_ERROR_NODONE);
@@ -988,6 +1007,8 @@ int ring_parser_stmt(Parser *pParser) {
 		} else {
 			ring_parser_error(pParser, RING_PARSER_ERROR_NOCATCH);
 		}
+		pParser->nTryCatchCounter--;
+		return RING_PARSER_FAIL;
 	}
 	/* Statement --> Bye (Close the Program) */
 	if (ring_parser_iskeyword(pParser, K_BYE)) {
@@ -1045,6 +1066,7 @@ int ring_parser_stmt(Parser *pParser) {
 	}
 	/* Statement --> Switch  Expr { ON|CASE Expr {Statement} } OFF */
 	if (ring_parser_iskeyword(pParser, K_SWITCH)) {
+		pParser->nSwitchCounter++;
 		ring_parser_nexttoken(pParser);
 		RING_PARSER_IGNORENEWLINE;
 		pParser->lAssignmentFlag = 0;
@@ -1112,6 +1134,7 @@ int ring_parser_stmt(Parser *pParser) {
 				ring_list_delete_gc(pParser->pRingState, pList2);
 				ring_parser_icg_freestack(pParser);
 				RING_STATE_PRINTRULE(RING_RULE_OFF);
+				pParser->nSwitchCounter--;
 				return RING_PARSER_OK;
 			} else {
 				ring_parser_error(pParser, RING_PARSER_ERROR_SWITCHOFF);
@@ -1119,6 +1142,8 @@ int ring_parser_stmt(Parser *pParser) {
 		} else {
 			ring_parser_error(pParser, RING_PARSER_ERROR_SWITCHEXPR);
 		}
+		pParser->nSwitchCounter--;
+		return RING_PARSER_FAIL;
 	}
 	/* Statement --> Import Identifier { '.' Identifier } */
 	if (ring_parser_iskeyword(pParser, K_IMPORT)) {
@@ -1131,6 +1156,11 @@ int ring_parser_stmt(Parser *pParser) {
 	}
 	/* Statement --> epsilon */
 	if (ring_parser_epsilon(pParser)) {
+		return RING_PARSER_OK;
+	}
+	/* Statement --> Comma */
+	if (ring_parser_isoperator2(pParser, OP_COMMA)) {
+		ring_parser_nexttoken(pParser);
 		return RING_PARSER_OK;
 	}
 	/* Statement --> Expr */

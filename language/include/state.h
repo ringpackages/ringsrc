@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_state_h
 #define ring_state_h
@@ -80,9 +80,9 @@ typedef struct RingState {
 	PoolManager vPoolManager;
 } RingState;
 #define RING_VERSION_MAJOR 1
-#define RING_VERSION_MINOR 24
+#define RING_VERSION_MINOR 25
 #define RING_VERSION_PATCH 0
-#define RING_STATE_VERSION "1.24"
+#define RING_STATE_VERSION "1.25"
 #define RING_STATE_VERSIONANDPATCH (RING_STATE_VERSION ".0")
 #define RING_WARNING_UNKNOWNOPTION "Warning (W1): Unrecognized option: "
 #define RING_WARNING_DUPLICATIONINFILENAME "Warning (W2) : Duplication in file name : "
@@ -129,7 +129,8 @@ RING_API int ring_state_runstring(RingState *pRingState, char *cString);
 
 RING_API void ring_state_runobjectfile(RingState *pRingState, char *cFileName);
 
-RING_API void ring_state_runobjectstring(RingState *pRingState, char *cString, const char *cFileName);
+RING_API void ring_state_runobjectstring(RingState *pRingState, char *cString, unsigned int nSize,
+					 const char *cFileName);
 
 RING_API void ring_state_runprogram(RingState *pRingState);
 

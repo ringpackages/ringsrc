@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_h
 #define ring_h
@@ -149,6 +149,7 @@
 #define RING_LISTSIZEOVERFLOW "\nError (E11) : List size overflow!\n"
 #define RING_HASHTABLESIZEOVERFLOW "\nError (E12) : HashTable size overflow!\n"
 #define RING_REFCOUNTOVERFLOW "\nError (E13) : Reference count overflow!\n"
+#define RING_CANTREADFILE "\nError (E14) : Can't read file"
 /* Buffer Size */
 #define RING_CHARBUF 2
 #define RING_HEXCHARBUF 3
@@ -186,6 +187,7 @@
 #define RING_CSTR_MAIN "main"
 #define RING_CSTR_RINGVMSEE "ringvm_see"
 #define RING_CSTR_RINGVMGIVE "ringvm_give"
+#define RING_CSTR_RINGVMERRORHANDLER "ringvm_errorhandler"
 #define RING_CSTR_ANONFUNC "_ring_anonymous_func_"
 #define RING_CSTR_INIT "init"
 #define RING_CSTR_THIS "this"
@@ -196,6 +198,7 @@
 #define RING_CSTR_BRACEEXPREVAL "braceexpreval"
 #define RING_CSTR_BRACEEND "braceend"
 #define RING_CSTR_BRACEERROR "braceerror"
+#define RING_CSTR_BRACENEWLINE "bracenewline"
 #define RING_CSTR_GETTEMPVAR "ring_gettemp_var"
 #define RING_CSTR_SETTEMPVAR "ring_settemp_var"
 #define RING_CSTR_CATCHERROR "ccatcherror"

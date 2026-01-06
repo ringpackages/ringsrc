@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -111,7 +111,9 @@ void ring_vm_loadaddress(VM *pVM) {
 		if (strcmp(RING_VM_IR_READC, RING_CSTR_THIS) != 0) {
 			/* Replace LoadAddress with PUSHP for better performance */
 			RING_VM_IR_OPCODE = ICO_PUSHP;
-			RING_VM_IR_SETREG1TOPOINTERFROMSTACK;
+			RING_VM_IR_ITEMSETPOINTER(RING_VM_IR_ITEM(RING_VM_IR_REG2), RING_VM_STACK_READP);
+			RING_VM_IR_SETINTREG(pVM->nActiveScopeID);
+			RING_VM_IR_SETREG2TYPE(RING_VM_REGTYPE_POINTER);
 			/* Check if we have ICO_PUSHV */
 			RING_VM_IR_SETFLAGREG2(RING_VM_IR_OPCODEVALUE(pVM->nPC - 1) == ICO_PUSHV);
 		}
@@ -335,7 +337,9 @@ void ring_vm_loadapushv(VM *pVM) {
 	if (pVM->nVarScope == RING_VARSCOPE_GLOBAL) {
 		/* Replace LoadAPushV with PUSHPV for better performance */
 		RING_VM_IR_OPCODE = ICO_PUSHPV;
-		RING_VM_IR_SETREG1TOPOINTERFROMSTACK;
+		RING_VM_IR_ITEMSETPOINTER(RING_VM_IR_ITEM(RING_VM_IR_REG2), RING_VM_STACK_READP);
+		RING_VM_IR_SETINTREG(pVM->nActiveScopeID);
+		RING_VM_IR_SETREG2TYPE(RING_VM_REGTYPE_POINTER);
 	}
 	ring_vm_varpushv(pVM);
 }
@@ -343,6 +347,9 @@ void ring_vm_loadapushv(VM *pVM) {
 void ring_vm_newline(VM *pVM) {
 	RING_VM_IR_SETLINENUMBER(RING_VM_IR_READI);
 	RING_VM_TRACEEVENT(RING_VM_TRACEEVENT_NEWLINE);
+	if (RING_VM_IR_READIVALUE(RING_VM_IR_REG2)) {
+		ring_vm_oop_internalcallforbracemethod(pVM, RING_CSTR_BRACENEWLINE);
+	}
 }
 
 void ring_vm_freestack(VM *pVM) {

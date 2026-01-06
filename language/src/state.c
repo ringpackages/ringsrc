@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #include "ring.h"
 
@@ -282,13 +282,14 @@ RING_API void ring_state_runobjectfile(RingState *pRingState, char *cFileName) {
 	}
 }
 
-RING_API void ring_state_runobjectstring(RingState *pRingState, char *cString, const char *cFileName) {
+RING_API void ring_state_runobjectstring(RingState *pRingState, char *cString, unsigned int nSize,
+					 const char *cFileName) {
 	/* Files List */
 	pRingState->pRingFilesList = ring_list_new_gc(pRingState, RING_ZERO);
 	pRingState->pRingFilesStack = ring_list_new_gc(pRingState, RING_ZERO);
 	ring_list_addstring_gc(pRingState, pRingState->pRingFilesList, cFileName);
 	ring_list_addstring_gc(pRingState, pRingState->pRingFilesStack, cFileName);
-	if (ring_objfile_readstring(pRingState, cString)) {
+	if (ring_objfile_readstring(pRingState, cString, nSize)) {
 		pRingState->lRunFromObjectFile = 1;
 		ring_state_runprogram(pRingState);
 	}
@@ -469,7 +470,15 @@ RING_API void ring_state_main(int nArgc, char *pArgv[]) {
 	lRingStateDebugSegFault = 0;
 	lRingStateCGI = 0;
 	signal(SIGSEGV, ring_state_segfaultaction);
-	if (nArgc > 1) {
+	/* Check Startup files (ring.ring and ring.ringo) */
+	if (ring_general_fexists(RING_FILES_AUTOLOADSRC) && lSrc == RING_FALSE) {
+		lSrc = RING_TRUE;
+		strcpy(cStr, RING_FILES_AUTOLOADSRC);
+	} else if (ring_general_fexists(RING_FILES_AUTOLOADOBJ) && lSrc == RING_FALSE) {
+		lSrc = RING_TRUE;
+		strcpy(cStr, RING_FILES_AUTOLOADOBJ);
+	}
+	if ((nArgc > 1) && (lSrc == RING_FALSE)) {
 		for (x = 1; x < nArgc; x++) {
 			if (strcmp(pArgv[x], "-cgi") == 0) {
 				lCGI = 1;
@@ -516,16 +525,8 @@ RING_API void ring_state_main(int nArgc, char *pArgv[]) {
 		ring_general_showtime();
 	}
 	srand(time(NULL));
-	/* Check Startup ring.ring */
-	if (ring_general_fexists(RING_FILES_AUTOLOADSRC) && nArgc == 1) {
-		ring_state_execute((char *)RING_FILES_AUTOLOADSRC, lCGI, lRun, lPrintIC, lPrintICFinal, lTokens, lRules,
-				   lIns, lGenObj, lGenCObj, lWarn, nArgc, pArgv);
-	} else if (ring_general_fexists(RING_FILES_AUTOLOADOBJ) && nArgc == 1) {
-		ring_state_execute((char *)RING_FILES_AUTOLOADOBJ, lCGI, lRun, lPrintIC, lPrintICFinal, lTokens, lRules,
-				   lIns, lGenObj, lGenCObj, lWarn, nArgc, pArgv);
-	}
 	/* Print Version */
-	else if ((nArgc == 1) || (cStr == NULL)) {
+	if (((nArgc == 1) && (lSrc == RING_FALSE)) || (cStr == NULL)) {
 		ring_state_usageinfo();
 	}
 	/* Execute source file */
@@ -541,6 +542,7 @@ RING_API void ring_state_main(int nArgc, char *pArgv[]) {
 RING_API void ring_state_execute(char *cFileName, int lISCGI, int lRun, int lPrintIC, int lPrintICFinal, int lTokens,
 				 int lRules, int lIns, int lGenObj, int lGenCObj, int lWarn, int nArgc, char *pArgv[]) {
 	RingState *pRingState;
+	unsigned int lCont;
 	pRingState = ring_state_new();
 	pRingState->lISCGI = lISCGI;
 	pRingState->lRun = lRun;
@@ -554,12 +556,16 @@ RING_API void ring_state_execute(char *cFileName, int lISCGI, int lRun, int lPri
 	pRingState->lWarning = lWarn;
 	pRingState->nArgc = nArgc;
 	pRingState->pArgv = pArgv;
+	lCont = RING_TRUE;
 	if (ring_general_isobjectfile(cFileName)) {
 		ring_state_runobjectfile(pRingState, cFileName);
 	} else {
-		ring_state_runfile(pRingState, cFileName);
+		lCont = ring_state_runfile(pRingState, cFileName);
 	}
 	ring_state_delete(pRingState);
+	if (!lCont) {
+		exit(RING_EXIT_FAIL);
+	}
 }
 
 RING_API void ring_state_segfaultaction(int nSig) {
@@ -575,7 +581,7 @@ RING_API void ring_state_segfaultaction(int nSig) {
 
 RING_API void ring_state_usageinfo(void) {
 	ring_general_printline();
-	printf("Ring version %s \n2013-2025, Mahmoud Fayed <msfclipper@yahoo.com>\n", RING_STATE_VERSIONANDPATCH);
+	printf("Ring version %s \n2013-2026, Mahmoud Fayed <msfclipper@yahoo.com>\n", RING_STATE_VERSIONANDPATCH);
 	puts("Usage : ring filename.ring [Options]");
 	ring_general_printline();
 	/* Options */

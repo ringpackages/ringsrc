@@ -1,5 +1,5 @@
 /*
-**  Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com>
+**  Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com>
 **  pClassesMap ( cClass Name ,  iPC , cParentClass, aMethodsList , nFlagIsParentClassInformation, PointerToPackage )
 **  pClassesMap ( cClass Name, Pointer to List that represent class inside a Package, Pointer to File )
 **  pFunctionsMap ( Name, PC, FileName, Private Flag )
@@ -33,6 +33,7 @@ void ring_vm_oop_newobj(VM *pVM) {
 			pVar = (List *)RING_VM_STACK_READP;
 			if (ring_list_isstring(pVar, RING_VAR_VALUE)) {
 				if (strcmp(ring_list_getstring(pVar, RING_VAR_VALUE), RING_CSTR_EMPTY) != 0) {
+					ring_string_tolower(ring_list_getstringobject(pVar, RING_VAR_VALUE));
 					cClassName = ring_list_getstring(pVar, RING_VAR_VALUE);
 				} else {
 					ring_vm_error(pVM, RING_VM_ERROR_USINGNULLVARIABLE);
@@ -1127,12 +1128,7 @@ void ring_vm_oop_preparecallmethodfrombrace(VM *pVM) {
 unsigned int ring_vm_oop_isattribute(VM *pVM, List *pList, const char *cStr) {
 	unsigned int x;
 	pList = ring_list_getlist(pList, RING_OBJECT_OBJECTDATA);
-	for (x = RING_OBJECT_ISATTRIBUTESEARCHSTART; x <= ring_list_getsize(pList); x++) {
-		if (strcmp(cStr, ring_list_getstring(ring_list_getlist(pList, x), RING_VAR_NAME)) == RING_ZERO) {
-			return RING_TRUE;
-		}
-	}
-	return RING_FALSE;
+	return ring_vm_findvarusinghashtable(pVM, pList, cStr) != NULL;
 }
 
 unsigned int ring_vm_oop_ismethod(VM *pVM, List *pList, const char *cStr) {
@@ -1145,16 +1141,12 @@ unsigned int ring_vm_oop_ismethod(VM *pVM, List *pList, const char *cStr) {
 	/* Get Parent Classes Methods */
 	ring_vm_oop_parentmethods(pVM, pList);
 	/* Find the Method */
-	if (ring_list_getsize(pList2) > 0) {
-		for (x = 1; x <= ring_list_getsize(pList2); x++) {
-			pList3 = ring_list_getlist(pList2, x);
-			if (strcmp(ring_list_getstring(pList3, RING_FUNCMAP_NAME), cStr) == 0) {
-				if (ring_list_getint(pList3, RING_FUNCMAP_PRIVATEFLAG)) {
-					return RING_ISMETHOD_PRIVATEMETHOD;
-				}
-				return RING_ISMETHOD_PUBLICMETHOD;
-			}
+	pList3 = ring_vm_findfuncusinghashtable(pVM, pList2, cStr);
+	if (pList3 != NULL) {
+		if (ring_list_getint(pList3, RING_FUNCMAP_PRIVATEFLAG)) {
+			return RING_ISMETHOD_PRIVATEMETHOD;
 		}
+		return RING_ISMETHOD_PUBLICMETHOD;
 	}
 	return RING_ISMETHOD_NOTFOUND;
 }
@@ -1279,4 +1271,18 @@ void ring_vm_oop_cleansetpropertylist(VM *pVM) {
 	if (ring_list_getsize(pVM->pSetProperty) > 0) {
 		ring_list_deleteitem_gc(pVM->pRingState, pVM->pSetProperty, ring_list_getsize(pVM->pSetProperty));
 	}
+}
+
+int ring_vm_oop_internalcallforbracemethod(VM *pVM, const char *cMethod) {
+	List *pList;
+	if (ring_list_getsize(pVM->pObjState) && ring_list_getsize(pVM->pBraceObjects) && (pVM->lCallMethod == 0) &&
+	    (ring_vm_oop_callmethodinsideclass(pVM) == 0)) {
+		pList = ring_list_getlist(pVM->pBraceObjects, ring_list_getsize(pVM->pBraceObjects));
+		if (ring_vm_oop_ismethod(pVM, ring_list_getlist(pList, RING_BRACEOBJECTS_BRACEOBJECT), cMethod)) {
+			RING_VM_STACK_POP;
+			ring_vm_callfuncwithouteval(pVM, cMethod, RING_TRUE);
+			return RING_TRUE;
+		}
+	}
+	return RING_FALSE;
 }

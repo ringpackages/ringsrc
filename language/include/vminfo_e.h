@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2025 Mahmoud Fayed <msfclipper@yahoo.com> */
+/* Copyright (c) 2013-2026 Mahmoud Fayed <msfclipper@yahoo.com> */
 
 #ifndef ring_vminfo_extension_h
 #define ring_vminfo_extension_h
@@ -48,4 +48,10 @@ void ring_vm_info_ringvmcodelist(void *pPointer);
 void ring_vm_info_ringvmismempool(void *pPointer);
 
 void ring_vm_info_ringvmruncode(void *pPointer);
+
+void ring_vm_info_ringvmringolists(void *pPointer);
+
+void ring_vm_info_ringvmtranslatecfunction(void *pPointer);
+
+void ring_vm_info_ringvmwriteringo(void *pPointer);
 #endif
