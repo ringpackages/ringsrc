@@ -672,7 +672,7 @@ int ring_parser_factor(Parser *pParser, int *nFlag) {
 			/* Generate Code */
 			ring_parser_icg_newoperation(pParser, ICO_PUSHC);
 			if (ring_parser_isanykeyword(pParser)) {
-				strcpy(cKeyword, ring_scanner_getkeywordtext(pParser->pRingState, pParser->cTokenText));
+				snprintf(cKeyword, RING_MEDIUMBUF, "%s", ring_scanner_getkeywordtext(pParser->pRingState, pParser->cTokenText));
 				ring_general_lower(cKeyword);
 				ring_parser_icg_newoperand(pParser, cKeyword);
 			} else {
@@ -827,7 +827,7 @@ int ring_parser_factor(Parser *pParser, int *nFlag) {
 		*/
 		ring_parser_icg_newoperation(pParser, ICO_PUSHC);
 		/* Note : the function name must be in lower case */
-		sprintf(cFuncName, "%s%d", RING_CSTR_ANONFUNC, RING_PARSER_OPERATIONID);
+		snprintf(cFuncName, RING_MEDIUMBUF, "%s%d", RING_CSTR_ANONFUNC, RING_PARSER_OPERATIONID);
 		ring_parser_icg_newoperand(pParser, cFuncName);
 		ring_parser_icg_newoperation(pParser, ICO_JUMP);
 		pMark = ring_parser_icg_getactiveoperation(pParser);
