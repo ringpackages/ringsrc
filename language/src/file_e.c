@@ -815,8 +815,7 @@ void ring_vm_file_dir(void *pPointer) {
 					ring_list_addstring_gc(((VM *)pPointer)->pRingState, pList2, pDirent->d_name);
 					/* Prepare Path */
 					getcwd(cPath, FILENAME_MAX);
-					strcat(cPath, "/");
-					strcat(cPath, pDirent->d_name);
+					snprintf(cPath + strlen(cPath), FILENAME_MAX - strlen(cPath), "/%s", pDirent->d_name);
 					stat(cPath, &st);
 					if (S_ISDIR(st.st_mode)) {
 						ring_list_adddouble_gc(((VM *)pPointer)->pRingState, pList2,
