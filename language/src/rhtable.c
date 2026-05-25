@@ -163,6 +163,10 @@ RING_API void ring_hashtable_rebuild_gc(void *pRingState, HashTable *pHashTable)
 	pOldArray = pHashTable->pArray;
 	nOldLinkedLists = pHashTable->nLinkedLists;
 	/* Create the new, larger table structure */
+	if ((pHashTable->nLinkedLists >= (UINT_MAX / 2)) || (pHashTable->nRebuildSize >= (UINT_MAX / 2))) {
+		printf(RING_HASHTABLESIZEOVERFLOW);
+		exit(RING_EXIT_FAIL);
+	}
 	pHashTable->nRebuildSize *= 2;
 	pHashTable->nLinkedLists *= 2;
 	pHashTable->pArray = (HashItem **)ring_state_calloc(pRingState, pHashTable->nLinkedLists, sizeof(HashItem *));
@@ -199,6 +203,27 @@ RING_API void ring_hashtable_print_gc(void *pRingState, HashTable *pHashTable) {
 			pItem = pItem->pNext;
 		}
 	}
+}
+
+RING_API void ring_hashtable_newpointernocase_gc(void *pRingState, HashTable *pHashTable, const char *cKey,
+						 void *pPointer) {
+	char *cLower;
+	cLower = (char *)ring_state_malloc(pRingState, strlen(cKey) + 1);
+	strcpy(cLower, cKey);
+	ring_general_lower(cLower);
+	ring_hashtable_newpointer_gc(pRingState, pHashTable, cLower, pPointer);
+	ring_state_free(pRingState, cLower);
+}
+
+RING_API void *ring_hashtable_findpointernocase_gc(void *pRingState, HashTable *pHashTable, const char *cKey) {
+	char *cLower;
+	void *pResult;
+	cLower = (char *)ring_state_malloc(pRingState, strlen(cKey) + 1);
+	strcpy(cLower, cKey);
+	ring_general_lower(cLower);
+	pResult = ring_hashtable_findpointer_gc(pRingState, pHashTable, cLower);
+	ring_state_free(pRingState, cLower);
+	return pResult;
 }
 
 RING_API HashTable *ring_hashtable_new(void) { return ring_hashtable_new_gc(NULL); }

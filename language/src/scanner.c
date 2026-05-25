@@ -66,6 +66,7 @@ void ring_scanner_readchar(Scanner *pScanner, char c) {
 							ring_list_deleteitem_gc(pScanner->pRingState, pScanner->pTokens,
 										ring_list_getsize(pScanner->pTokens));
 							pScanner->cState = SCANNER_STATE_MLCOMMENT;
+							pScanner->nLiteralLine = pScanner->nLinesCount;
 							ring_string_set_gc(pScanner->pRingState, pScanner->pActiveToken,
 									   "/*");
 							return;
@@ -410,14 +411,6 @@ void ring_scanner_processnumber(String *pTokenString) {
 }
 
 unsigned int ring_scanner_checklasttoken(Scanner *pScanner) {
-	if (ring_list_getsize(pScanner->pTokens) == 0) {
-		if (pScanner->cState == SCANNER_STATE_COMMENT) {
-			if (pScanner->pRingState->lCommentsAsTokens) {
-				ring_scanner_addtoken(pScanner, SCANNER_TOKEN_COMMENT);
-			}
-			return RING_TRUE;
-		}
-	}
 	if (pScanner->cState == SCANNER_STATE_LITERAL) {
 		if (pScanner->pRingState->lOnlyTokens) {
 			pScanner->pRingState->nScannerError = 1;
@@ -434,10 +427,24 @@ unsigned int ring_scanner_checklasttoken(Scanner *pScanner) {
 		return RING_FALSE;
 	} else if (pScanner->cState == SCANNER_STATE_GENERAL) {
 		ring_scanner_checktoken(pScanner);
-	} else if ((pScanner->cState == SCANNER_STATE_COMMENT) || (pScanner->cState == SCANNER_STATE_MLCOMMENT)) {
+	} else if (pScanner->cState == SCANNER_STATE_COMMENT) {
 		if (pScanner->pRingState->lCommentsAsTokens) {
 			ring_scanner_addtoken(pScanner, SCANNER_TOKEN_COMMENT);
 		}
+	} else if (pScanner->cState == SCANNER_STATE_MLCOMMENT) {
+		if (pScanner->pRingState->lOnlyTokens) {
+			pScanner->pRingState->nScannerError = 1;
+			return RING_FALSE;
+		}
+		ring_state_cgiheader(pScanner->pRingState);
+		printf("Error (S2) In file: %s \n",
+		       ring_list_getstring(pScanner->pRingState->pRingFilesList,
+					   ring_list_getsize(pScanner->pRingState->pRingFilesList)));
+		printf("In Line (%d) Unclosed comment \n", pScanner->nLiteralLine);
+		if (ring_list_getsize(pScanner->pRingState->pRingFilesList) > 1) {
+			printf("Called from other source code file");
+		}
+		return RING_FALSE;
 	} else if (pScanner->cState == SCANNER_STATE_LOADSYNTAX) {
 		pScanner->cState = SCANNER_STATE_GENERAL;
 		ring_scanner_loadsyntax(pScanner);
@@ -607,15 +614,19 @@ void ring_scanner_changekeyword(Scanner *pScanner) {
 	    (strcmp(ring_string_get(word2), RING_CSTR_EMPTY) == 0)) {
 		puts(RING_WARNING_CHANGEKEYWORDPARA);
 	} else {
-		nResult = ring_hashtable_findnumber_gc(
-		    pScanner->pRingState, ring_list_gethashtable(pScanner->pKeywords), ring_string_get(word1));
-		if (nResult > 0) {
-			ring_list_setstring_gc(pScanner->pRingState, pScanner->pKeywords, nResult,
-					       ring_string_get(word2));
-			ring_list_genhashtable_gc(pScanner->pRingState, pScanner->pKeywords);
+		if (ring_string_size(word2) > RING_SCANNER_MAXKEYOPSIZE) {
+			puts(RING_WARNING_LONGKEYOP);
 		} else {
-			puts(RING_WARNING_KEYWORDNOTFOUND);
-			printf("Keyword :  %s\n", ring_string_get(word1));
+			nResult = ring_hashtable_findnumber_gc(
+			    pScanner->pRingState, ring_list_gethashtable(pScanner->pKeywords), ring_string_get(word1));
+			if (nResult > 0) {
+				ring_list_setstring_gc(pScanner->pRingState, pScanner->pKeywords, nResult,
+						       ring_string_get(word2));
+				ring_list_genhashtable_gc(pScanner->pRingState, pScanner->pKeywords);
+			} else {
+				puts(RING_WARNING_KEYWORDNOTFOUND);
+				printf("Keyword :  %s\n", ring_string_get(word1));
+			}
 		}
 	}
 	/* Delete Strings */
@@ -656,15 +667,19 @@ void ring_scanner_changeoperator(Scanner *pScanner) {
 	    (strcmp(ring_string_get(word2), RING_CSTR_EMPTY) == 0)) {
 		puts(RING_WARNING_CHANGEOPERATORPARA);
 	} else {
-		nResult = ring_hashtable_findnumber_gc(
-		    pScanner->pRingState, ring_list_gethashtable(pScanner->pOperators), ring_string_get(word1));
-		if (nResult > 0) {
-			ring_list_setstring_gc(pScanner->pRingState, pScanner->pOperators, nResult,
-					       ring_string_get(word2));
-			ring_list_genhashtable_gc(pScanner->pRingState, pScanner->pOperators);
+		if (ring_string_size(word2) > RING_SCANNER_MAXKEYOPSIZE) {
+			puts(RING_WARNING_LONGKEYOP);
 		} else {
-			puts(RING_WARNING_OPERATORNOTFOUND);
-			printf("Operator :  %s\n", ring_string_get(word1));
+			nResult = ring_hashtable_findnumber_gc(
+			    pScanner->pRingState, ring_list_gethashtable(pScanner->pOperators), ring_string_get(word1));
+			if (nResult > 0) {
+				ring_list_setstring_gc(pScanner->pRingState, pScanner->pOperators, nResult,
+						       ring_string_get(word2));
+				ring_list_genhashtable_gc(pScanner->pRingState, pScanner->pOperators);
+			} else {
+				puts(RING_WARNING_OPERATORNOTFOUND);
+				printf("Operator :  %s\n", ring_string_get(word1));
+			}
 		}
 	}
 	/* Delete Strings */

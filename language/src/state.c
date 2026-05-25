@@ -265,11 +265,11 @@ RING_API int ring_state_runfile(RingState *pRingState, char *cFileName) {
 	return lRunVM;
 }
 
-RING_API void ring_state_runobjectfile(RingState *pRingState, char *cFileName) {
+RING_API int ring_state_runobjectfile(RingState *pRingState, char *cFileName) {
 	/* Check Path Size */
 	if (strlen(cFileName) > RING_PATHLIMIT) {
 		printf("%s %s %s %d \n", RING_CANTOPENFILE, cFileName, RING_VERYLONGPATH, RING_PATHLIMIT);
-		return;
+		return RING_FALSE;
 	}
 	/* Files List */
 	pRingState->pRingFilesList = ring_list_new_gc(pRingState, RING_ZERO);
@@ -279,7 +279,9 @@ RING_API void ring_state_runobjectfile(RingState *pRingState, char *cFileName) {
 	if (ring_objfile_readfile(pRingState, cFileName)) {
 		pRingState->lRunFromObjectFile = 1;
 		ring_state_runprogram(pRingState);
+		return RING_TRUE;
 	}
+	return RING_FALSE;
 }
 
 RING_API void ring_state_runobjectstring(RingState *pRingState, char *cString, unsigned int nSize,
@@ -451,8 +453,9 @@ RING_API void ring_state_cgiheader(RingState *pRingState) {
 }
 
 RING_API void ring_state_main(int nArgc, char *pArgv[]) {
-	int x, lCGI, lRun, lPrintIC, lPrintICFinal, lTokens, lRules, lIns, lPerformance, lSrc, lGenObj, lGenCObj, lWarn;
 	char *cStr;
+	char cFileName[RING_SMALLBUF];
+	int x, lCGI, lRun, lPrintIC, lPrintICFinal, lTokens, lRules, lIns, lPerformance, lSrc, lGenObj, lGenCObj, lWarn;
 	/* Init Values */
 	lCGI = 0;
 	lRun = 1;
@@ -471,12 +474,14 @@ RING_API void ring_state_main(int nArgc, char *pArgv[]) {
 	lRingStateCGI = 0;
 	signal(SIGSEGV, ring_state_segfaultaction);
 	/* Check Startup files (ring.ring and ring.ringo) */
-	if (ring_general_fexists(RING_FILES_AUTOLOADSRC) && lSrc == RING_FALSE) {
+	if (ring_general_fexists(RING_FILES_AUTOLOADSRC)) {
 		lSrc = RING_TRUE;
-		strcpy(cStr, RING_FILES_AUTOLOADSRC);
-	} else if (ring_general_fexists(RING_FILES_AUTOLOADOBJ) && lSrc == RING_FALSE) {
+		strcpy(cFileName, RING_FILES_AUTOLOADSRC);
+		cStr = cFileName;
+	} else if (ring_general_fexists(RING_FILES_AUTOLOADOBJ)) {
 		lSrc = RING_TRUE;
-		strcpy(cStr, RING_FILES_AUTOLOADOBJ);
+		strcpy(cFileName, RING_FILES_AUTOLOADOBJ);
+		cStr = cFileName;
 	}
 	if ((nArgc > 1) && (lSrc == RING_FALSE)) {
 		for (x = 1; x < nArgc; x++) {
@@ -558,7 +563,7 @@ RING_API void ring_state_execute(char *cFileName, int lISCGI, int lRun, int lPri
 	pRingState->pArgv = pArgv;
 	lCont = RING_TRUE;
 	if (ring_general_isobjectfile(cFileName)) {
-		ring_state_runobjectfile(pRingState, cFileName);
+		lCont = ring_state_runobjectfile(pRingState, cFileName);
 	} else {
 		lCont = ring_state_runfile(pRingState, cFileName);
 	}

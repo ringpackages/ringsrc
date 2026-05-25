@@ -11,12 +11,15 @@ typedef struct ListBlocks {
 typedef struct List {
 	struct Items *pFirst;
 	struct Items *pLast;
-	unsigned int nSize;
-	unsigned int nNextItem;
 	struct Items *pLastItem;
 	struct Item **pItemsArray;
 	struct HashTable *pHashTable;
 	struct ListBlocks *pBlocks;
+	struct List *pHashParent;
+	unsigned int nNextItem;
+	unsigned int nSize;
+	unsigned char nIsHashMap;
+	unsigned char nHashSubList;
 	/* Garbage Collector Data (Reference Counting) */
 	ListGCData vGC;
 } List;
@@ -33,6 +36,7 @@ typedef struct List {
 #define RING_LISTBLOCKTYPE_ITEM 1
 #define RING_LISTBLOCKTYPE_ITEMS 2
 #define RING_LISTBLOCKTYPE_LIST 3
+#define RING_HASHMAP_THRESHOLD 8
 /* Macro */
 #define ring_list_isdouble_gc(pState, pList, nIndex)                                                                   \
 	(ring_list_gettype_gc(pState, pList, nIndex) == ITEMTYPE_NUMBER) &&                                            \
@@ -57,6 +61,10 @@ typedef struct List {
 #define ring_list_getsize_gc(pState, pList) (pList->nSize)
 #define ring_list_incdouble_gc(pState, pList, nIndex) ++ring_list_getitem_gc(pState, pList, nIndex)->data.dNumber
 #define ring_list_deletelastitem_gc(pState, pList) ring_list_deleteitem_gc(pState, pList, ring_list_getsize(pList))
+#define ring_hashmap_invalidate_gc(pState, pList)                                                                      \
+	if ((pList)->pHashTable != NULL) {                                                                             \
+		(pList)->pHashTable = ring_hashtable_delete_gc((pState), (pList)->pHashTable);                         \
+	}
 /* Macro (Without State Pointer) */
 #define ring_list_isdouble(pList, nIndex) ring_list_isdouble_gc(NULL, pList, nIndex)
 #define ring_list_isint(pList, nIndex) ring_list_isint_gc(NULL, pList, nIndex)
@@ -73,6 +81,12 @@ typedef struct List {
 #define ring_list_getsize(pList) ring_list_getsize_gc(NULL, pList)
 #define ring_list_incdouble(pList, nIndex) ring_list_incdouble_gc(NULL, pList, nIndex)
 #define ring_list_deletelastitem(pList) ring_list_deletelastitem_gc(NULL, pList)
+#define ring_hashmap_attachsublist(pSubList, pParent)                                                                  \
+	(pSubList)->nHashSubList = 1;                                                                                  \
+	(pSubList)->pHashParent = (pParent);
+#define ring_hashmap_detachsublist(pSubList)                                                                           \
+	(pSubList)->nHashSubList = 0;                                                                                  \
+	(pSubList)->pHashParent = NULL;
 /*
 **  Functions
 **  Main List Functions
@@ -195,11 +209,21 @@ RING_API unsigned int ring_list_findpointer_gc(void *pState, List *pList, void *
 RING_API unsigned int ring_list_findlistref_gc(void *pState, List *pList, List *pValue, unsigned int nColumn);
 /* Sort and Binary Search */
 
-RING_API void ring_list_sortnum_gc(void *pState, List *pList, unsigned int left, unsigned int right,
-				   unsigned int nColumn, const char *cAttribute);
+void ring_list_general_swaplong(long *a, long *b);
 
-RING_API void ring_list_sortstr_gc(void *pState, List *pList, unsigned int left, unsigned int right,
-				   unsigned int nColumn, const char *cAttribute);
+long ring_list_general_partitionnum(double *keys, long *idx, long low, long high);
+
+long ring_list_general_partitionstr(char **keys, long *idx, long low, long high);
+
+void ring_list_general_quicksortnum(double *keys, long *idx, long low, long high);
+
+void ring_list_general_quicksortstr(char **keys, long *idx, long low, long high);
+
+RING_API void ring_list_sortnum_gc(void *pState, List *pList, long low, long high, unsigned int nColumn,
+				   const char *cAttribute);
+
+RING_API void ring_list_sortstr_gc(void *pState, List *pList, long low, long high, unsigned int nColumn,
+				   const char *cAttribute);
 
 RING_API unsigned int ring_list_binarysearchnum_gc(void *pState, List *pList, double nNum1, unsigned int nColumn,
 						   const char *cAttribute);
@@ -309,7 +333,7 @@ RING_API void ring_list_insertfuncpointer(List *pList, unsigned int nPos, void (
 
 RING_API List *ring_list_insertlist(List *pList, unsigned int nPos);
 
-RING_API void ring_list_sortstr(List *pList, unsigned int left, unsigned int right, unsigned int nColumn,
+RING_API void ring_list_sortstr(List *pList, unsigned int low, unsigned int high, unsigned int nColumn,
 				const char *cAttribute);
 /* List Items to HashTable */
 
@@ -340,8 +364,11 @@ RING_API unsigned int ring_list_findcpointer_gc(void *pState, List *pList, List 
 RING_API double ring_list_getdoublecolumn_gc(void *pState, List *pList, unsigned int nIndex, unsigned int nColumn,
 					     const char *cAttribute);
 
-RING_API char *ring_list_getstringcolumn_gc(void *pState, List *pList, unsigned int nIndex, unsigned int nColumn,
-					    const char *cAttribute);
+RING_API const char *ring_list_getstringcolumn_gc(void *pState, List *pList, unsigned int nIndex, unsigned int nColumn,
+						  const char *cAttribute);
+
+RING_API void ring_list_setstringcolumn_gc(void *pState, List *pList, unsigned int nIndex, unsigned int nColumn,
+					   const char *cAttribute, const char *cValue);
 
 RING_API void ring_list_addcustomringpointer_gc(void *pState, List *pList, void *pValue,
 						void (*pFreeFunc)(void *, void *));

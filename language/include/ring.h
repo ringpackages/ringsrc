@@ -29,9 +29,6 @@
 	/* Support compiling using a Microchip C compiler for 32-bit PIC Microcontrollers */
 	#define RING_MICROCONTROLLER 1
 #endif
-#ifdef __ANDROID__
-	#define RING_SIMPLEHASHFUNC 1
-#endif
 #ifdef __FreeBSD__
 	#include <sys/sysctl.h>
 #endif
@@ -123,6 +120,8 @@
 	#define RING_LONGLONG_HIGHVALUE 9007199254740991LL
 	#define RING_UNSIGNEDINTEGERPOINTER uintptr_t
 #endif
+/* Check NaN/Inf */
+#define RING_ISNOTFINITE(x) (((volatile double)(x)) != (x) || ((volatile double)(x)) * 0.0 != 0.0)
 /* DLL/So */
 #if RING_USEDLL
 	#if RING_BUILDLIB
@@ -150,6 +149,10 @@
 #define RING_HASHTABLESIZEOVERFLOW "\nError (E12) : HashTable size overflow!\n"
 #define RING_REFCOUNTOVERFLOW "\nError (E13) : Reference count overflow!\n"
 #define RING_CANTREADFILE "\nError (E14) : Can't read file"
+#define RING_INTERNALERROR "\nError (E15) : Internal error (Unexpected Value)\n"
+#define RING_BUFFEROVERFLOW "\nError (E16) : Internal error (Buffer Overflow)\n"
+#define RING_FILENAMETOOSHORT "\nError (E17) : Internal error (Filename too short)\n"
+#define RING_FILENAMETOOLONG "\nError (E18) : Internal error (Filename too long)\n"
 /* Buffer Size */
 #define RING_CHARBUF 2
 #define RING_HEXCHARBUF 3
@@ -160,7 +163,7 @@
 #define RING_BYTEBITS 8
 /* General */
 #if RING_LOWMEM
-	#define RING_PATHSIZE 128
+	#define RING_PATHSIZE 512
 	#define RING_PATHLIMIT 256
 #else
 	#define RING_PATHSIZE 8192

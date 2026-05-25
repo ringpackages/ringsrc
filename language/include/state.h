@@ -78,11 +78,14 @@ typedef struct RingState {
 	unsigned int lCreateListsUsingBlocks : 1;
 	/* Pool Manager */
 	PoolManager vPoolManager;
+	/* For Embedding Ring in Ring (ring_state_mainfile) */
+	char *pCustomArgv[2];
+	char cCustomPara[2][RING_LARGEBUF];
 } RingState;
 #define RING_VERSION_MAJOR 1
-#define RING_VERSION_MINOR 26
+#define RING_VERSION_MINOR 27
 #define RING_VERSION_PATCH 0
-#define RING_STATE_VERSION "1.26"
+#define RING_STATE_VERSION "1.27"
 #define RING_STATE_VERSIONANDPATCH (RING_STATE_VERSION ".0")
 #define RING_WARNING_UNKNOWNOPTION "Warning (W1): Unrecognized option: "
 #define RING_WARNING_DUPLICATIONINFILENAME "Warning (W2) : Duplication in file name : "
@@ -94,6 +97,7 @@ typedef struct RingState {
 #define RING_WARNING_OPERATORNOTFOUND "Warning (W6) : Compiler command ChangeRingOperator - Operator not found!"
 #define RING_WARNING_EXITOUTSIDELOOP "Warning (W7) : Using the EXIT command outside loop!"
 #define RING_WARNING_LOOPOUTSIDELOOP "Warning (W8) : Using the LOOP command outside loop"
+#define RING_WARNING_LONGKEYOP "Warning (W9) : Long Keyword/Operator, Maximum size is 120 characters"
 #define RING_MSG_PRINTRULES "Grammar Rules Used by The Parser "
 #define RING_MSG_PROGRAMRULE "\nRule : Program --> {Statement}\n\nLine 1\n"
 #define RING_CGI_START "Content-Type: text/plain\n\n"
@@ -127,7 +131,7 @@ RING_API int ring_state_runfile(RingState *pRingState, char *cFileName);
 
 RING_API int ring_state_runstring(RingState *pRingState, char *cString);
 
-RING_API void ring_state_runobjectfile(RingState *pRingState, char *cFileName);
+RING_API int ring_state_runobjectfile(RingState *pRingState, char *cFileName);
 
 RING_API void ring_state_runobjectstring(RingState *pRingState, char *cString, unsigned int nSize,
 					 const char *cFileName);
